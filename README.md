@@ -1,0 +1,1 @@
+# 2025_Gait_Transitions_in_Load_Pulling_Quadrupeds_Insights_from_Sled_Dogs_and_a_Minimal_SLIP_Model
