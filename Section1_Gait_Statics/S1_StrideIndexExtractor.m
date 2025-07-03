@@ -1,4 +1,4 @@
-function [stridesIds, stridesIds_midflight, gaitTypes, gaitTypes_midflight] = P1_StrideIndexExtractor(stridesequences)
+function [stridesIds_midflight, gaitTypes_midflight] = S1_StrideIndexExtractor(stridesequences)
 % P1_StrideIndexExtractor detects strides and gait types from 4-limb stance/flight data
 % Input:  stridesequences (N x 4), each row is a time frame; columns are [LH, LF, RF, RH]
 % Output:
@@ -138,15 +138,15 @@ end
 [~, order] = sort(touchdownFrame);
 
 if isequal(order, [4 1 2 3])
-    gaitType = "RGL";
+    gaitType = "RL";
     % gaitType = "RGL";
 elseif isequal(order, [1 4 3 2])
-    gaitType = "RGR";
+    gaitType = "RR";
     % gaitType = "RGN";
 elseif isequal(order, [4 1 3 2])
-    gaitType = "TGL";
+    gaitType = "TL";
 elseif isequal(order, [1 4 2 3])
-    gaitType = "TGR";
+    gaitType = "TR";
 else
     gaitType = "UNKNOWN";
 end
