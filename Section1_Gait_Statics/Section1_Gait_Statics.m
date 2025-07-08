@@ -1,7 +1,8 @@
-function Section1_Gait_Statics_GUI
-    %% Setup GUI Window
-    Screensize = get(0, 'ScreenSize');
+function Section1_Gait_Statics()
 
+    %  --- Setup GUI Window --- 
+    Screensize = get(0, 'ScreenSize');
+    
     figHeight = Screensize(4) * 0.6;
     figWidth = figHeight * 4/3; % Two axes side by side with 4:3 aspect ratio + padding
 
@@ -12,7 +13,8 @@ function Section1_Gait_Statics_GUI
 
     currentfolder = pwd;
 
-    %% Dropdown and Folder Button
+
+    %  --- Dropdown and Folder Button --- 
 
     folderButton = uibutton(fig, 'Text', 'Select Folder', ...
         'Position', [0.02 * figWidth, 0.91 * figHeight, buttonWidth, buttonHeight], ...
@@ -20,16 +22,13 @@ function Section1_Gait_Statics_GUI
 
     datasetDropdown = uidropdown(fig, ...
         'Position', [0.02 * figWidth + 1.2*buttonWidth, 0.91 * figHeight, 2*buttonWidth, buttonHeight], ...
-        'Items', {});
+        'Items', GetCSVFiles(), ...
+        'ValueChangedFcn', @(src, event) LoadSelectedFile());
 
-    %% Axes (Blank for Now)
-
-%     ax1 = uiaxes(fig, 'Position', [0.05*figWidth, 0.05*figHeight, 0.4* figHeight, 0.3* figHeight], ...
-%         'Box', 'on');
     ax = uiaxes(fig, 'Position', [0.4*figWidth, 0.2*figHeight, 0.8* figHeight, 0.6*figHeight], ...
         'Box', 'on');
 
-    %% Initialize dropdown and load file if valid
+    %  --- Initialize dropdown and load file if valid --- 
     initialFiles = GetCSVFiles();
     datasetDropdown.Items = initialFiles;
     if ~strcmp(initialFiles{1}, '<none>')
@@ -37,7 +36,7 @@ function Section1_Gait_Statics_GUI
         LoadSelectedFile();
     end
 
-    %% --- Nested Functions ---
+    % --- Nested Functions ---
 
     % Function to get .csv files
     function files = GetCSVFiles()
@@ -80,76 +79,27 @@ function Section1_Gait_Statics_GUI
     % Load selected CSV and extract footfall sequences
     function LoadSelectedFile()
         file = datasetDropdown.Value;
+        individual_name = string(file(1:10)) + ' ' + string(file(12));
         if strcmp(file, '<none>'), return; end
         raw_data = readtable(fullfile(currentfolder, file));
         if ~all(ismember({'LF', 'RF', 'LH', 'RH'}, raw_data.Properties.VariableNames))
             uialert(fig, 'Selected file does not contain required footfall columns.', 'Error');
             return;
         end
-        stridesequences = ExtractFootfall(raw_data);
+        stridesequences = raw_data(:, {'LH', 'LF', 'RF', 'RH'});
         strideMatrix = table2array(stridesequences);    
-        [stridesIds_midflight, gaitTypes_midflight] = S1_StrideIndexExtractor(strideMatrix);
+        [stridesIds_midflight, gaitTypes_midflight] = StrideIndexExtractor(strideMatrix);
         
         % --- Call Visualization Function ---
-         [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, gaitTypes_midflight);
+         [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, gaitTypes_midflight, individual_name);
         % --- Build the table
-        BuildAndShowGaitStatsTable(fig, ax.Position, allGaits, gaitCounts, transitionPercent)
+        BuildAndShowGaitStatsTable(fig, allGaits, gaitCounts, transitionPercent)
     end
 end
 
-%% Function to build the table
-function BuildAndShowGaitStatsTable(fig, axPos, allGaits, gaitCounts, transitionPercent)
-    numGaits = numel(allGaits);
-    rowLabels = cellstr(allGaits);
-    columnNames = [{'Gait Type'}, strcat('-->', rowLabels)];
-
-    validIdx = gaitCounts > 0;
-
-    % Build table data
-    data = cell(numGaits, numGaits + 1);  % 4 rows × (1 label + 4 transitions)
-    for i = 1:numGaits
-        data{i, 1} = rowLabels{i};
-        if ~validIdx(i)
-            data(i, 2:end) = {'×'};
-        else
-            for j = 1:numGaits
-                val = transitionPercent(i, j);
-                if gaitCounts(i) == 0 || val == 0
-                    data{i, j + 1} = '×';
-                else
-                    data{i, j + 1} = sprintf('%d', round(val * gaitCounts(i) / 100));
-                end
-            end
-        end
-    end
-
-    % Position table left of the axes
-    tableWidth = 0.35 * axPos(3);  % relative to figure
-    tableHeight = axPos(4);
-    tableLeft = axPos(1) - tableWidth - 20;  % small gap
-    tableBottom = axPos(2);
-
-    % Remove previous tables (if any)
-    delete(findall(fig, 'Type', 'uitable'));
-
-    % Create new table
-    uitable(fig, ...
-        'Data', data, ...
-        'Position', [tableLeft, tableBottom, tableWidth, tableHeight], ...
-        'ColumnName', [{'Gait Type'}, strcat('-->', rowLabels).'], ...
-        'RowName', {}, ...
-        'FontSize', 12, ...
-        'ColumnWidth', num2cell([80, repmat(70, 1, numGaits)]));
-end
-
-%% Function to extract footfall sequences 
-function stridesequences = ExtractFootfall(raw_data)
-    stridesequences = raw_data(:, {'LH', 'LF', 'RF', 'RH'});
-    % Display or use footfall_data as needed
-end
 
 %% Function to Plot Gait Transition Statics
-function  [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, gaitTypes_midflight)
+function  [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, gaitTypes_midflight, individual_name)
     cla(ax);
     hold(ax, 'on');
     axis(ax, 'equal');
@@ -239,7 +189,7 @@ function  [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, ga
         end
     
         % Label
-        labelOffsetScale = 0.8;  % adjust spacing factor if needed
+        labelOffsetScale = 0.6;  % adjust spacing factor if needed
         arrowTheta = atan2(pos(2), pos(1));
         textOffset = labelOffsetScale * (dotRadius + baseLineWidth) * [cos(arrowTheta), sin(arrowTheta)];
 
@@ -281,7 +231,7 @@ function  [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, ga
                 fill(ax, [tip(1), left(1), right(1)], [tip(2), left(2), right(2)], allGaitColors(i,:), 'EdgeColor', 'none');
 
                 midIdx = round(length(xc)/2);
-                arcLabelOffset = 0.005*dotRadius + 0.1 *lw;  % safe buffer outside arc
+                arcLabelOffset = 0.003*dotRadius + 0.03 *lw;  % safe buffer outside arc
                 labelPos = [xc(midIdx), yc(midIdx)] + arcLabelOffset * [cos(arrowTheta), sin(arrowTheta)];
 
                 text(ax, labelPos(1), labelPos(2), sprintf('%.2f%%', perc), 'HorizontalAlignment', 'center', 'FontSize', 10, 'Color', allGaitColors(i,:));
@@ -318,6 +268,229 @@ function  [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, ga
         end
     end
 
-    title(ax, {'Gait Transition Percentages', 'For Alice'}, 'FontSize', 14);
+    title(ax, {'Gait Transition Percentages', 'For ' + string(individual_name)}, 'FontSize', 14);
+end
+
+%% Function to build the table
+function BuildAndShowGaitStatsTable(fig, allGaits, gaitCounts, transitionPercent)
+    numGaits = numel(allGaits);
+    rowLabels = cellstr(allGaits);
+    numRows = numGaits + 1;     % +1 for total row
+    numCols = numGaits + 2;     % 1 label + gait-to-gait + 1 count
+
+    % Build table data
+    data = cell(numRows, numCols);
+    validIdx = gaitCounts > 0;
+
+    % Column names: transitions first, count last
+    columnNames = [{'Gait Type'}, cellstr("→" + rowLabels), {'Count'}];
+
+    % Fill data rows
+    for i = 1:numGaits
+        data{i, 1} = rowLabels{i};  % Gait name
+        for j = 1:numGaits
+            if ~validIdx(i) || transitionPercent(i, j) == 0
+                data{i, j + 1} = '×';
+            else
+                data{i, j + 1} = sprintf('%d', round(transitionPercent(i, j) * gaitCounts(i) / 100));
+            end
+        end
+        data{i, numCols} = gaitCounts(i);  % Count at last column
+    end
+
+    % Add bottom "Total" row
+    data{numRows, 1} = 'Total';
+    for j = 1:numGaits
+        totalIncoming = 0;
+        for i = 1:numGaits
+            if validIdx(i)
+                totalIncoming = totalIncoming + round(transitionPercent(i, j) * gaitCounts(i) / 100);
+            end
+        end
+        data{numRows, j + 1} = num2str(totalIncoming);
+    end
+    data{numRows, numCols} = sum(gaitCounts);  % Total count
+
+    % Position and font layout
+    figWidth = fig.Position(3);
+    figHeight = fig.Position(4);
+    xPos = 0.02 * figWidth;
+    yPos = 0.3 * figHeight;
+    tableWidth = 0.6 * figHeight;
+    tableHeight = 0.4 * figHeight;
+
+    columnWidthPixels = tableWidth / numCols;
+    colWidths = num2cell(repmat(columnWidthPixels, 1, numCols));
+
+    desiredRowHeight = tableHeight / numRows;
+    estimatedFontSize = floor(desiredRowHeight / 5);
+
+    % Remove existing tables
+    delete(findall(fig, 'Type', 'uitable'));
+
+    % Create the table
+    uitable(fig, ...
+        'Data', data, ...
+        'Position', [xPos, yPos, tableWidth, tableHeight], ...
+        'ColumnName', columnNames, ...
+        'RowName', {}, ...
+        'FontSize', estimatedFontSize, ...
+        'ColumnWidth', colWidths, ...
+        'RowStriping', 'off');
+end
+
+%% stride index extraction
+function [stridesIds_midflight, gaitTypes_midflight] = StrideIndexExtractor(stridesequences)
+% P1_StrideIndexExtractor detects strides and gait types from 4-limb stance/flight data
+% Input:  stridesequences (N x 4), each row is a time frame; columns are [LH, LF, RF, RH]
+% Output:
+%   stridesIds          (3 x M)     = [start of flight; end of flight; end of stride]
+%   stridesIds_midflight (2 x M-1)  = [startIdx; endIdx] using midpoints between flights
+%   gaitTypes           (1 x M)     = string array: gait classification for each stride
+%   gaitTypes_midflight (1 x M-1)   = gait type labels corresponding to midflight strides
+
+% Transpose input to 4 x N format for compatibility
+stridesequences = stridesequences.';  
+
+[numLegs, numSamples] = size(stridesequences);
+stridesIds = [];
+gaitTypes = [];
+
+idx = 2;
+inFlightPhase = false;
+flightStartIdx = -1;
+flightEndIdx = -1;
+maxFlightLen = 0;
+maxFlightStartIdx = -1;
+maxFlightEndIdx = -1;
+
+legCompleted = zeros(1, numLegs);
+trackingStride = false;
+
+while idx <= numSamples
+    prevState = stridesequences(:, idx - 1);
+    currState = stridesequences(:, idx);
+
+    % Detect start of flight phase
+    if any(prevState == 1) && all(currState == 0)
+        inFlightPhase = true;
+        flightStartIdx = idx;
+    end
+
+    % Detect end of flight phase
+    if all(prevState == 0) && any(currState == 1) && inFlightPhase
+        flightEndIdx = idx - 1;
+        inFlightPhase = false;
+
+        currFlightLen = flightEndIdx - flightStartIdx + 1;
+        if currFlightLen > maxFlightLen
+            maxFlightLen = currFlightLen;
+            maxFlightStartIdx = flightStartIdx;
+            maxFlightEndIdx = flightEndIdx;
+
+            trackingStride = true;
+            legCompleted = zeros(1, numLegs);
+        end
+    end
+
+    % Track touchdown/liftoff for each leg
+    if trackingStride && maxFlightStartIdx > 0
+        for leg = 1:numLegs
+            seg = stridesequences(leg, maxFlightStartIdx:idx);
+            if any(diff(seg) == 1) && any(diff(seg) == -1)
+                legCompleted(leg) = 1;
+            end
+        end
+
+        if all(legCompleted)
+            strideEnd = -1;
+            tempIdx = idx;
+            while tempIdx < numSamples
+                if any(stridesequences(:, tempIdx - 1) == 1) && all(stridesequences(:, tempIdx) == 0)
+                    strideEnd = tempIdx - 1;
+                    break;
+                end
+                tempIdx = tempIdx + 1;
+            end
+
+            if strideEnd > maxFlightStartIdx
+                stridesIds = [stridesIds, [maxFlightStartIdx; maxFlightEndIdx; strideEnd]];
+                strideSegment = stridesequences(:, maxFlightStartIdx:strideEnd);
+                gait = ClassifyGaitFromTouchdown(strideSegment);
+                gaitTypes = [gaitTypes, gait];
+
+                % Reset
+                idx = strideEnd + 1;
+                inFlightPhase = false;
+                flightStartIdx = -1;
+                flightEndIdx = -1;
+                maxFlightLen = 0;
+                maxFlightStartIdx = -1;
+                maxFlightEndIdx = -1;
+                legCompleted = zeros(1, numLegs);
+                trackingStride = false;
+                continue;
+            else
+                break;
+            end
+        end
+    end
+
+    idx = idx + 1;
+end
+
+gaitTypes = string(gaitTypes);  % Convert to string array
+gaitTypes_midflight = gaitTypes(1:end-1);
+stridesIds_midflight = RefineStrideBoundaries(stridesIds);
+gaitTypes_midflight = string(gaitTypes_midflight);
+
+end
+
+%% Refine stride boundaries using flight midpoints
+function midflightstrides = RefineStrideBoundaries(strides)
+numStrides = size(strides, 2);
+if numStrides < 2
+    midflightstrides = [];
+    return;
+end
+
+midflightstrides = zeros(2, numStrides - 1);
+for i = 1:numStrides - 1
+    startMid = round((strides(1, i) + strides(2, i)) / 2);
+    endMid   = round((strides(1, i + 1) + strides(2, i + 1)) / 2) - 1;
+    midflightstrides(:, i) = [startMid; endMid];
+end
+end
+
+%% Gait classification from touchdown timing
+function gaitType = ClassifyGaitFromTouchdown(strideSegment)
+% Leg order: [LH; LF; RF; RH] = [1 2 3 4]
+numFrames = size(strideSegment, 2);
+touchdownFrame = NaN(1, 4);
+
+for leg = 1:4
+    for t = 2:numFrames
+        if strideSegment(leg, t - 1) == 0 && strideSegment(leg, t) == 1
+            touchdownFrame(leg) = t;
+            break;
+        end
+    end
+end
+
+[~, order] = sort(touchdownFrame);
+
+if isequal(order, [4 1 2 3])
+    gaitType = "RL";
+    % gaitType = "RGL";
+elseif isequal(order, [1 4 3 2])
+    gaitType = "RR";
+    % gaitType = "RGN";
+elseif isequal(order, [4 1 3 2])
+    gaitType = "TL";
+elseif isequal(order, [1 4 2 3])
+    gaitType = "TR";
+else
+    gaitType = "UNKNOWN";
+end
 end
 
