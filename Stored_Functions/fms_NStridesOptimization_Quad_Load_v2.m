@@ -1,15 +1,15 @@
-function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_multi, t_exp, ft_dog_multi, loading_force_multi, term_weights)
+function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_accum, t_exp, ft_exp, loading_force_exp, term_weights)
 
   num_strides = size(t_exp,1);
   fixed_length   = 44;    % still 44 per stride, since you're still carrying E(9) in X_multi
   varying_length  = 13;
   expected_len= fixed_length + max(0,num_strides-1)*varying_length;
-  if numel(X_multi)~=expected_len
+  if numel(X_accum)~=expected_len
     error('bad X_multi length');
   end
 
   % split out the combined-vector arguments for the first stride
-  X_curr = X_multi(1:fixed_length);
+  X_curr = X_accum(1:fixed_length);
 
   % accumulators
   residual_sum       = 0;
@@ -51,31 +51,31 @@ function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_
     perm = [1 2 3 4 7 8 5 6];       % new order
     ft_sim = P_curr(perm) ./ P_curr(9);
 
-    ft_dog = ft_dog_multi(stride_idx, :);
+    ft_dog = ft_exp(stride_idx, :);
     ft_diff_sum = ft_diff_sum + norm(ft_sim - ft_dog);
     FT_exp = [FT_exp ft_dog];
-    FT_sim = [FT_sim ft_sim];
+    FT_sim = [FT_sim ft_sim+(stride_idx-1)];
 
 
     % loading‐force
-    if iscell(loading_force_multi)
-      LFt = DataLengthResampler(loading_force_multi{stride_idx}, T_curr)';
+    if iscell(loading_force_exp)
+      LFt = DataLengthResampler(loading_force_exp{stride_idx}, T_curr)';
     else
-      LFt = DataLengthResampler(loading_force_multi(:,stride_idx), T_curr)';
+      LFt = DataLengthResampler(loading_force_exp(:,stride_idx), T_curr)';
     end
     load_force_diff = load_force_diff + norm(LFt - F_leash_curr);
-    LF_exp = [LF_exp LFt];
-    LF_sim = [LF_sim F_leash_curr];
+    LF_exp = [LF_exp; LFt];
+    LF_sim = [LF_sim; F_leash_curr];
 
     if stride_idx < num_strides
         Xn = zeros(fixed_length, 1);
         Xn(1:13) = Y_curr(end, 2:14)';
         Xn(37) = Y_curr(end, 15) - Y_curr(end, 1);
         Xn(38) = Y_curr(end, 16);
-        Xn(14:22) = X_multi(fixed_length + (stride_idx-1)*varying_length + 1 : fixed_length + (stride_idx-1)*varying_length + 9);
+        Xn(14:22) = X_accum(fixed_length + (stride_idx-1)*varying_length + 1 : fixed_length + (stride_idx-1)*varying_length + 9);
         Xn(24:27) = X_curr(28:31);
-        Xn(28:31) = X_multi(fixed_length + (stride_idx-1)*varying_length + 10 : fixed_length + (stride_idx-1)*varying_length + 13);
-        Xn([23 32:36 39:44]) = X_multi([23 32:36 39:44]);
+        Xn(28:31) = X_accum(fixed_length + (stride_idx-1)*varying_length + 10 : fixed_length + (stride_idx-1)*varying_length + 13);
+        Xn([23 32:36 39:44]) = X_accum([23 32:36 39:44]);
         X_curr = Xn;
     end
   end
@@ -97,24 +97,22 @@ function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_
     % Calculate the residual sum of squares (RSS) for Footfall Timings
     RSS_sd = sum((SD_exp - SD_sim).^2);
     TSS_sd = sum((SD_exp - mean(SD_exp)).^2);
-    % Calculate R^2
-    R2_sd = 1 - (RSS_sd / TSS_sd);
 
     % Calculate the residual sum of squares (RSS) for Footfall Timings
     RSS_ft = sum((FT_exp - FT_sim).^2);
     TSS_ft = sum((FT_exp - mean(FT_exp)).^2);
-    % Calculate R^2
-    R2_ft = 1 - (RSS_ft / TSS_ft);
 
     % Calculate the residual sum of squares (RSS) for Loading Force
     RSS_lf = sum((LF_exp - LF_sim).^2);
     TSS_lf = sum((LF_exp - mean(LF_exp)).^2);
-    % Calculate R^2
-    R2_lf = 1 - (RSS_lf / TSS_lf);
     
-    R2.strideduration = R2_sd;
-    R2.ft = R2_ft;
-    R2.loadingforce = R2_ft;
+    R2.strideduration = 1 - (RSS_sd / TSS_sd);
+    R2.ft = 1 - (RSS_ft / TSS_ft);
+    R2.loadingforce = 1 - (RSS_lf / TSS_lf);
+
+    R2.weighted = (term_weights.strideduration * R2.strideduration + ...
+                   term_weights.ft * R2.ft + ...
+                   term_weights.loadingforce * R2.loadingforce)/(term_weights.strideduration + term_weights.ft + term_weights.loadingforce);
 end
 
 %% Data length resampler
