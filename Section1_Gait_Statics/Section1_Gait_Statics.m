@@ -6,7 +6,9 @@ function Section1_Gait_Statics()
     figHeight = Screensize(4) * 0.6;
     figWidth = figHeight * 4/3; % Two axes side by side with 4:3 aspect ratio + padding
 
-    fig = uifigure('Name', 'Footfall Viewer', 'Position', [0.5*Screensize(3) - 0.5*figWidth, 0.5*Screensize(4) - 0.5*figHeight, figWidth, figHeight]);
+    fig = uifigure('Name', 'Footfall Viewer', 'Position',...
+        [0.5*Screensize(3) - 0.5*figWidth, 0.5*Screensize(4) - 0.5*figHeight, figWidth, figHeight],...
+        'Resize', 'off');
     
     buttonWidth = 0.10*Screensize(4);
     buttonHeight = 0.04*Screensize(4);
@@ -93,7 +95,7 @@ function Section1_Gait_Statics()
         % --- Call Visualization Function ---
          [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, gaitTypes_midflight, individual_name);
         % --- Build the table
-        BuildAndShowGaitStatsTable(fig, allGaits, gaitCounts, transitionPercent)
+        BuildAndShowGaitStatsTable(fig, allGaits, gaitCounts, transitionPercent, individual_name)
     end
 end
 
@@ -191,7 +193,7 @@ function  [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, ga
         % Label
         labelOffsetScale = 0.6;  % adjust spacing factor if needed
         arrowTheta = atan2(pos(2), pos(1));
-        textOffset = labelOffsetScale * (dotRadius + baseLineWidth) * [cos(arrowTheta), sin(arrowTheta)];
+        textOffset = labelOffsetScale * (dotRadius + baseLineWidth + 0.001*ax.Position(3)) * [cos(arrowTheta), sin(arrowTheta)];
 
         text(ax, pos(1) + textOffset(1), pos(2) + textOffset(2), allGaits(i), ...
             'HorizontalAlignment', 'center', 'FontSize', 12, 'FontWeight', 'bold');
@@ -231,7 +233,7 @@ function  [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, ga
                 fill(ax, [tip(1), left(1), right(1)], [tip(2), left(2), right(2)], allGaitColors(i,:), 'EdgeColor', 'none');
 
                 midIdx = round(length(xc)/2);
-                arcLabelOffset = 0.003*dotRadius + 0.03 *lw;  % safe buffer outside arc
+                arcLabelOffset = 0.0003*ax.Position(3)+ 0.03*dotRadius + 0.03 *lw;  % safe buffer outside arc
                 labelPos = [xc(midIdx), yc(midIdx)] + arcLabelOffset * [cos(arrowTheta), sin(arrowTheta)];
 
                 text(ax, labelPos(1), labelPos(2), sprintf('%.2f%%', perc), 'HorizontalAlignment', 'center', 'FontSize', 10, 'Color', allGaitColors(i,:));
@@ -268,24 +270,23 @@ function  [allGaits, gaitCounts, transitionPercent]  = PlotGaitTransition(ax, ga
         end
     end
 
-    title(ax, {'Gait Transition Percentages', 'For ' + string(individual_name)}, 'FontSize', 14);
+    title(ax, {'Gait Transition Percentages', 'For ' + string(individual_name)}, 'FontSize', 0.035*ax.Position(3));
 end
 
 %% Function to build the table
-function BuildAndShowGaitStatsTable(fig, allGaits, gaitCounts, transitionPercent)
+function BuildAndShowGaitStatsTable(fig, allGaits, gaitCounts, transitionPercent, individual_name)
     numGaits = numel(allGaits);
     rowLabels = cellstr(allGaits);
-    numRows = numGaits + 1;     % +1 for total row
-    numCols = numGaits + 2;     % 1 label + gait-to-gait + 1 count
+    numRows = numGaits + 1;
+    numCols = numGaits + 2;
 
-    % Build table data
+    % Build data matrix
     data = cell(numRows, numCols);
     validIdx = gaitCounts > 0;
 
-    % Column names: transitions first, count last
+    % Column names: → transitions, then count
     columnNames = [{'Gait Type'}, cellstr("→" + rowLabels), {'Count'}];
 
-    % Fill data rows
     for i = 1:numGaits
         data{i, 1} = rowLabels{i};  % Gait name
         for j = 1:numGaits
@@ -295,11 +296,11 @@ function BuildAndShowGaitStatsTable(fig, allGaits, gaitCounts, transitionPercent
                 data{i, j + 1} = sprintf('%d', round(transitionPercent(i, j) * gaitCounts(i) / 100));
             end
         end
-        data{i, numCols} = gaitCounts(i);  % Count at last column
+        data{i, end} = gaitCounts(i);  % Count column
     end
 
-    % Add bottom "Total" row
-    data{numRows, 1} = 'Total';
+    % Final row: total
+    data{end, 1} = 'Total';
     for j = 1:numGaits
         totalIncoming = 0;
         for i = 1:numGaits
@@ -307,37 +308,44 @@ function BuildAndShowGaitStatsTable(fig, allGaits, gaitCounts, transitionPercent
                 totalIncoming = totalIncoming + round(transitionPercent(i, j) * gaitCounts(i) / 100);
             end
         end
-        data{numRows, j + 1} = num2str(totalIncoming);
+        data{end, j + 1} = num2str(totalIncoming);
     end
-    data{numRows, numCols} = sum(gaitCounts);  % Total count
+    data{end, end} = sum(gaitCounts);
 
-    % Position and font layout
+    % Layout
     figWidth = fig.Position(3);
     figHeight = fig.Position(4);
     xPos = 0.02 * figWidth;
-    yPos = 0.3 * figHeight;
+    yPos = 0.35 * figHeight;
     tableWidth = 0.6 * figHeight;
-    tableHeight = 0.4 * figHeight;
+    tableHeight = 0.3 * figHeight;
+   
 
     columnWidthPixels = tableWidth / numCols;
     colWidths = num2cell(repmat(columnWidthPixels, 1, numCols));
 
-    desiredRowHeight = tableHeight / numRows;
-    estimatedFontSize = floor(desiredRowHeight / 5);
-
-    % Remove existing tables
+    % Draw table (no FontSize specified)
     delete(findall(fig, 'Type', 'uitable'));
-
-    % Create the table
     uitable(fig, ...
         'Data', data, ...
         'Position', [xPos, yPos, tableWidth, tableHeight], ...
         'ColumnName', columnNames, ...
         'RowName', {}, ...
-        'FontSize', estimatedFontSize, ...
         'ColumnWidth', colWidths, ...
         'RowStriping', 'off');
+
+    % Add title label
+    delete(findall(fig, 'Type', 'uilabel'));
+    table_title = 'Gait Transition Statistics\n for' + individual_name;
+    uilabel(fig, ...
+        'Text', sprintf(table_title), ...
+        'Position', [xPos, yPos + tableHeight + 0.01*figHeight, tableWidth, 0.15*tableWidth], ...
+        'HorizontalAlignment', 'center', ...
+        'FontWeight', 'bold', ...
+        'FontSize', 0.045*tableWidth, ...
+        'Tag', 'TableTitle');
 end
+
 
 %% stride index extraction
 function [stridesIds_midflight, gaitTypes_midflight] = StrideIndexExtractor(stridesequences)
