@@ -78,7 +78,14 @@ function fig_handle = PlotFootfallSequence_Hildebrand_v2(varargin)
                     % Simulation mean block in black
                     rectX = [m0 m1 m1 m0];
                     rectY = yc + hw/2 * [-1 -1 1 1];
-                    fill(rectX, rectY, 'k', 'EdgeColor', 'none', 'Parent', ax);
+                    colors = [
+                                 8 163 119;   % LH
+                               214  99   8;   % LF
+                                 8 118 179;   % RH
+                               239 229  72    % RF
+                              ] / 255;
+                    fill(rectX, rectY, colors(limb,:), 'EdgeColor', 'none', 'Parent', ax);
+
                 end
             end
         end
