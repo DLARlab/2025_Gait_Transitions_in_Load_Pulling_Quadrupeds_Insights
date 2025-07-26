@@ -12,7 +12,6 @@ function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_
   X_curr = X_accum(1:fixed_length);
 
   % accumulators
-  residual_sum       = 0;
   sd_diff_sum        = 0;
   ft_diff_sum        = 0;
   load_force_diff    = 0;
@@ -27,11 +26,9 @@ function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_
 
   for stride_idx = 1:num_strides
     
-    [res_curr, T_curr, Y_curr, P_curr, ~, F_leash_curr, ~] = Quad_Load_ZeroFun_Transition_v2(X_curr);
+    [~, T_curr, Y_curr, P_curr, ~, F_leash_curr, ~] = Quad_Load_ZeroFun_Transition_v2(X_curr);
 
-    
-    residual_sum = residual_sum + norm(res_curr);
-
+   
     % stride‐duration
     if iscell(t_exp)
         T_curr_dsample = DataLengthResampler(T_curr, t_exp{stride_idx,:});
@@ -81,14 +78,12 @@ function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_
   end
 
   % package cost_terms
-  cost_terms.residual       = residual_sum;
   cost_terms.strideduration = sd_diff_sum;
   cost_terms.ft             = ft_diff_sum;
   cost_terms.loadingforce   = load_force_diff;
 
 
-  total_cost = ...
-    term_weights.residual       * cost_terms.residual   + ...
+  total_cost =...
     term_weights.strideduration * cost_terms.strideduration + ...
     term_weights.ft             * cost_terms.ft         + ...
     term_weights.loadingforce   * cost_terms.loadingforce;

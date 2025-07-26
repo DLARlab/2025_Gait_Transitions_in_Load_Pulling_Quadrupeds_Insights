@@ -1,4 +1,4 @@
-function [ LegLength, LegAngle, BodyJPos, BackJPos, FrontJPos] = ComputeJoint_LegLA(y,P,T)
+function [ LegLength, LegAngle, BodyJPos, BackJPos, FrontJPos] = ComputeJoint_LegLA(t, y, P)
 
 % Get a mapping for the state and parameter vectors.  This allows us
 % to use a more readable syntax: "y(contStateIndices.dy)" instead of
@@ -11,10 +11,10 @@ function [ LegLength, LegAngle, BodyJPos, BackJPos, FrontJPos] = ComputeJoint_Le
 %     [~, ~, systParamIndices] = SystParamDefinition();
 % end
 
-lb       = P(15); % half of the body length
+lb       = P(15); % COM location
 
-l_l      = 1;
-l_r      = 1;
+l_l      = P(13); % Leg length
+l_r      = P(13);
 
 
 tBL_TD = P(1);
@@ -88,23 +88,23 @@ tAPEX = P(9);
     end
     
     
-if ((T>tBL_TD && T<tBL_LO && tBL_TD<tBL_LO) || ((T<tBL_LO || T>tBL_TD) && tBL_TD>tBL_LO))
+if ((t>tBL_TD && t<tBL_LO && tBL_TD<tBL_LO) || ((t<tBL_LO || t>tBL_TD) && tBL_TD>tBL_LO))
     contactBL = true;
 else
     contactBL = false;
 end
-if ((T>tFL_TD && T<tFL_LO && tFL_TD<tFL_LO) || ((T<tFL_LO || T>tFL_TD) && tFL_TD>tFL_LO))
+if ((t>tFL_TD && t<tFL_LO && tFL_TD<tFL_LO) || ((t<tFL_LO || t>tFL_TD) && tFL_TD>tFL_LO))
     contactFL = true;
 else
     contactFL = false;
 end
 
-if ((T>tBR_TD && T<tBR_LO && tBR_TD<tBR_LO) || ((T<tBR_LO || T>tBR_TD) && tBR_TD>tBR_LO))
+if ((t>tBR_TD && t<tBR_LO && tBR_TD<tBR_LO) || ((t<tBR_LO || t>tBR_TD) && tBR_TD>tBR_LO))
     contactBR = true;
 else
     contactBR = false;
 end
-if ((T>tFR_TD && T<tFR_LO && tFR_TD<tFR_LO) || ((T<tFR_LO || T>tFR_TD) && tFR_TD>tFR_LO))
+if ((t>tFR_TD && t<tFR_LO && tFR_TD<tFR_LO) || ((t<tFR_LO || t>tFR_TD) && tFR_TD>tFR_LO))
     contactFR = true;
 else
     contactFR = false;

@@ -35,7 +35,8 @@
 %
 classdef SLIP_Animation_Quad_Load< OutputCLASS 
     % Private attributes:
-    properties 
+    properties
+        States;
         fig;
         axes;
         Body;  
@@ -46,135 +47,133 @@ classdef SLIP_Animation_Quad_Load< OutputCLASS
         COM;
         RopeLoad;
         Ground;
-        PhaseDiagram;
         Title;
         options
     end
     % Public methods:
     methods
         % Constructor:
-        function obj = SLIP_Animation_Quad_Load(Y_quad,P,plotPositions,fig,options)
+        function obj = SLIP_Animation_Quad_Load(Y, P,plotPositions,FigOrAx,options)
             obj.slowDown = 1;      % Run this in real time.
             obj.rate     = 0.05;   % with 25 fps
             obj.options  = options;
             
-            % Copy the parameter vector: COM location
-            lb     = P(15);
-            l_leg  = P(16);
-            
-            % Initialize the graphics and set properties
-            obj.fig = fig; clf(obj.fig);
-            set(obj.fig, 'Name','SLIP model');  % Window title
-            set(obj.fig, 'Color','w');          % Background color
-            set(obj.fig, 'Renderer','OpenGL');
-            set(obj.fig, 'Position', plotPositions);
+            obj.States = Y;
 
-            % Initialize the axes and set properties: axis off
-            obj.axes = axes(obj.fig);
-            outerpos = obj.axes.OuterPosition;
-            ti = obj.axes.TightInset; 
-            left = outerpos(1) + ti(1);
-            bottom = outerpos(2) + ti(2);
-            ax_width = outerpos(3) - ti(1) - ti(3);
-            ax_height = outerpos(4) - ti(2) - ti(4);
-            set(obj.axes, 'Position',[left bottom ax_width ax_height],'Box','Off')
-%             obj.axes.Position = [left bottom ax_width ax_height];
-            obj.axes.XAxis.Visible = 'Off'; 
+            if isa(FigOrAx, 'matlab.ui.Figure')
+
+                obj.fig = FigOrAx; clf(obj.fig);
+                set(obj.fig, 'Name','SLIP model');
+                set(obj.fig, 'Color','w');
+                set(obj.fig, 'Renderer','OpenGL');
+                set(obj.fig, 'Position', plotPositions);
+
+                obj.axes = axes(obj.fig);
+                outerpos = obj.axes.OuterPosition;  
+                ti = obj.axes.TightInset; 
+                left = outerpos(1) + ti(1);
+                bottom = outerpos(2) + ti(2);
+                ax_width = outerpos(3) - ti(1) - ti(3);
+                ax_height = outerpos(4) - ti(2) - ti(4);
+                set(obj.axes, 'Position',[left bottom ax_width ax_height],'Box','Off')
+                hold(obj.axes, 'on');
+
+            elseif isa(FigOrAx, 'matlab.graphics.axis.Axes') || isa(FigOrAx, 'matlab.ui.control.UIAxes')
+
+                obj.axes = FigOrAx;
+                obj.fig = ancestor(obj.axes, 'figure');
+                set(obj.axes, 'Position', plotPositions, 'Box', 'Off')
+                hold(obj.axes, 'on');
+
+            else
+                error('Third input must be either a figure handle or axes handle.');
+            end
+
+
+            obj = obj.InitializePlots(P);
+        end
+
+        function obj = InitializePlots(obj, P)
+            
+            % Clear and reset current axes
+            cla(obj.axes, 'reset');
+            hold(obj.axes, 'on');
+            obj.axes.XAxis.Visible = 'Off';
             obj.axes.YAxis.Visible = 'Off';
+            
+            Y = obj.States;
+            x = Y(1,1); y = Y(1,3); phi_body = Y(1,5);
 
+            lb = P(15); l_leg_rest = P(13); l_rope   = P(end);
 
-            
-            % Define some arbitrary states:
-            x        = 1;
-            y        = 1.2;
-            phi_body = 0;
-            
-            % Right Legs
-            obj.Leg_BL = DrawLegs([x-lb;y],l_leg, 0.3);
-            obj.Leg_FL = DrawLegs([x+(1-lb);y],l_leg,-0.1); 
-            
-            % Draw Ground
-            obj.Ground = DrawGround; 
-         
-            % Main Body
-            obj.Body  = DrawBody([x,y,phi_body],lb);                      
-            %Centor of Mass
-            radius = 0.15;
-            obj.COM = DrawCOM([x,y,phi_body],radius);
+            obj.Leg_BL = DrawLegs([x-lb;y], l_leg_rest, l_leg_rest, 0.3, obj.axes);
+            obj.Leg_FL = DrawLegs([x+(1-lb);y], l_leg_rest, l_leg_rest, -0.1, obj.axes); 
+            obj.Ground = DrawGround(obj.axes); 
+            obj.Body  = DrawBody([x,y,phi_body],lb, obj.axes);
 
-            
-            % Left Legs
-            obj.Leg_BR = DrawLegs([x-lb;y],l_leg, 0.3);
-            obj.Leg_FR = DrawLegs([x+(1-lb);y],l_leg,-0.1);
-            
-            % PhaseDigram
-            if string(obj.options.AnimationMode) == 'Detailed'
-                obj.Title = text(x-1.3,1.9,'SLIP Model Animation','FontSize',15,'FontWeight','Bold');
-                obj.PhaseDiagram = DrawPhaseDiagram(x,P);
-            end
-            
-            if size(Y_quad,2)>14
-                l_rope   = P(end);
-                obj.RopeLoad  = DrawRopeLoad(Y_quad(1,:),l_rope);
+            if ~(lb == 0.5)
+                radius = 0.15;
+                obj.COM = DrawCOM([x,y,phi_body],radius, obj.axes);
             end
 
-           
+            obj.Leg_BR = DrawLegs([x-lb;y], l_leg_rest, l_leg_rest, 0.3, obj.axes);
+            obj.Leg_FR = DrawLegs([x+(1-lb);y], l_leg_rest, l_leg_rest, -0.1, obj.axes);
 
-        end   
-        % Updated function.Is called by the integrator:
-        function obj = update(obj,y,P,T)
+            obj.RopeLoad  = DrawRopeLoad( Y(1,:), l_rope, obj.axes);
+
+
+            axis(obj.axes, [-3 + x , 1.5+x, -0.1, 2]);
+        end
+
+        % Updated function. Is called by the integrator:
+        function obj = update(obj, t, y, P)
             
-            figure(obj.fig)
-            [LegLength, LegAngle, BodyJPos, BackJPos, FrontJPos] = ComputeJoint_LegLA(y,P,T);
-                     
+            if isa(obj.fig, 'matlab.ui.Figure')
+                figure(obj.fig);  % only valid for classic figures
+            end
+
+            [LegLength, LegAngle, BodyJPos, BackJPos, FrontJPos] = ComputeJoint_LegLA(t, y, P);
+
             % Left Legs
-            SetLegs(BackJPos,LegLength.BL,LegAngle.BL,obj.Leg_BL);
-            SetLegs(FrontJPos,LegLength.FL,LegAngle.FL,obj.Leg_FL);
+            SetLegs(BackJPos,  LegLength.BL, P(13), LegAngle.BL,obj.Leg_BL);
+            SetLegs(FrontJPos, LegLength.FL, P(13), LegAngle.FL,obj.Leg_FL);
             % Main
             SetBody(BodyJPos, obj.Body,P(15));
-            % Centor of Mass
-            radius = 0.15;
-            SetCOM(BodyJPos,obj.COM,radius);
-     
+            % Center of Mass
+            if ~(P(15) == 0.5)
+                radius = 0.15;
+                SetCOM(BodyJPos,obj.COM,radius);
+            end         
             % Right Legs
-            SetLegs(BackJPos,LegLength.BR,LegAngle.BR,obj.Leg_BR);
-            SetLegs(FrontJPos,LegLength.FR,LegAngle.FR,obj.Leg_FR);        
-            % phase diagram
+            SetLegs(BackJPos,  LegLength.BR, P(13), LegAngle.BR,obj.Leg_BR);
+            SetLegs(FrontJPos, LegLength.FR, P(13), LegAngle.FR,obj.Leg_FR);        
             
-            if string(obj.options.AnimationMode)=='Detailed'
-                set(obj.Title,'Position',[BodyJPos(1)-1.3 1.9]);
-                SetPhaseDiagram(BodyJPos(1),P,obj.PhaseDiagram)
-            end
+            SetRopeLoad(y,P(end),obj.RopeLoad);
 
-            if length(y)>14
-                SetRopeLoad(y,P(end),obj.RopeLoad);
-            end
-            
-            if length(y)>14
-                axis([-3 + BodyJPos(1),1.5 + BodyJPos(1),-0.1,2]);
-            else
-                axis([-1.5 + BodyJPos(1),1.5 + BodyJPos(1),-0.1,2]);
-            end
-
+            axis([-3 + BodyJPos(1),1.5 + BodyJPos(1),-0.1,2]);
             drawnow();
         end
+            
+            
+ 
     end
 end
+
 
 %% Functions that draw the parts of the body
 
 % Create patches of main body in the Constructor. Save handles for update function.
-function  BodyH = DrawBody(BodyJPos,lb)
+function  BodyH = DrawBody(BodyJPos,lb,ax)
 
     [ x1, y1, f,v ]  = ComputeBodyGraphics(BodyJPos,lb);
 
     % White background (face color white, no line)
-    b1  = patch('XData',x1,'YData',y1,'LineStyle','none','FaceColor',[1 1 1]); 
+    b1  = patch('XData',x1,'YData',y1,'LineStyle','none','FaceColor',[1 1 1], 'Parent', ax); 
     % Shade lines (Grey lines)
     b2  = patch('faces', f, 'vertices', v,...
-           'linewidth',3,'FaceColor',[1 1 1],'EdgeColor',0.8*[1 1 1]); 
+           'linewidth',3,'FaceColor',[1 1 1],'EdgeColor',0.8*[1 1 1], 'Parent', ax); 
     % Black Outline (No face color white, black outline)
-    b3  = patch('XData',x1,'YData',y1,'linewidth',4,'FaceColor','none');
+    b3  = patch('XData',x1,'YData',y1,'linewidth',4,'FaceColor','none', 'Parent', ax);
 
     % Save all the handles for update function
     BodyH = struct('B_bg',b1,'B_sha',b2,'B_out',b3);
@@ -183,31 +182,31 @@ end
 
 
 % Create patches of legs in the Constructor. Save handles for update function.
-function  LegParts=DrawLegs(vecS,l_leg, gamma_leg)
+function  LegParts=DrawLegs(vecS, l_leg, l_leg_rest, gamma_leg, ax)
 
-    [LegVertices, LegFaces] = ComputeLegGraphics(vecS,l_leg,gamma_leg);
+    [LegVertices, LegFaces] = ComputeLegGraphics(vecS, l_leg, l_leg_rest, gamma_leg);
     % Spring Part 1************************************************************
     L1   = patch('faces', LegFaces.L_Sp1, 'vertices', LegVertices.L_Sp1,...
-           'linewidth',5,'EdgeColor',[245 131 58]/256); % color blue
+           'linewidth',5,'EdgeColor',[245 131 58]/256, 'Parent', ax); % color blue
 
     % Upper Leg****************************************************************
     % 1. outline of upper leg
     L2_1  = patch('faces',LegFaces.L_UpBO, 'vertices', LegVertices.L_UpBO,...
-          'LineStyle','none','FaceColor',[1 1 1]);
+          'LineStyle','none','FaceColor',[1 1 1], 'Parent', ax);
     % 2. Draw shaded region in the upper leg
     L3   = patch('faces', LegFaces.L_Ups,  'vertices', LegVertices.L_Ups,...
-          'linewidth',3,'FaceColor','none','EdgeColor',0.8*[1 1 1]); % grey
+          'linewidth',3,'FaceColor','none','EdgeColor',0.8*[1 1 1], 'Parent', ax); % grey
     % 3. Outline of upper leg  
     L2_2  = patch('faces',LegFaces.L_UpBO, 'vertices', LegVertices.L_UpBO,...
-          'linewidth',3,'FaceColor','none');
+          'linewidth',3,'FaceColor','none', 'Parent', ax);
 
     % Lower Leg ***************************************************************
     L4  = patch('faces', LegFaces.L_low, 'vertices', LegVertices.L_low,...
-          'linewidth',3,'FaceColor',[1 1 1],'EdgeColor',[0 0 0]);
+          'linewidth',3,'FaceColor',[1 1 1],'EdgeColor',[0 0 0], 'Parent', ax);
 
     % Spring Part 2 ***********************************************************
     L5   = patch('faces',LegFaces.L_Sp2, 'vertices', LegVertices.L_Sp1,...
-          'linewidth',5,'EdgeColor',[245 131 58]/256);
+          'linewidth',5,'EdgeColor',[245 131 58]/256, 'Parent', ax);
 
     % Save all the handles for update function
     LegParts = struct('L_Sp1',L1,'L_UpB',L2_1,'L_Upo',L2_2,'L_Ups',L3,'L_low',L4,'L_Sp2',L5);
@@ -215,7 +214,7 @@ function  LegParts=DrawLegs(vecS,l_leg, gamma_leg)
 end
 
 % Create patches of Centor of mass in the Constructor. Save handles for update function.
-function COMH = DrawCOM(BodyJPos,radius)
+function COMH = DrawCOM(BodyJPos,radius,ax)
 
     RotM = [ cos(BodyJPos(3)), -sin(BodyJPos(3));
              sin(BodyJPos(3)),  cos(BodyJPos(3))];
@@ -228,7 +227,7 @@ function COMH = DrawCOM(BodyJPos,radius)
     vert_out = RotM*vert_out + BodyJPos(1:2)'*ones(1,size(vert_out,2));
 
 
-    b1 = patch(vert_out(1,:), vert_out(2,:),'white','linewidth',5); 
+    b1 = patch(vert_out(1,:), vert_out(2,:),'white','linewidth',5, 'Parent', ax); 
 
     alpha = linspace(0, pi/2, 10);
     vert = [0,sin(alpha)*radius*0.75,0
@@ -242,7 +241,7 @@ function COMH = DrawCOM(BodyJPos,radius)
 
     vert_x = [Vert(1,:);Vert(3,:);Vert(5,:);Vert(7,:)]' + BodyJPos(1);
     vert_y = [Vert(2,:);Vert(4,:);Vert(6,:);Vert(8,:)]' + BodyJPos(2);
-    b2 = patch(vert_x, vert_y, cat(3,[1 0 1 0], [1 0 1 0],[1 0 1 0]),'LineWidth',3);
+    b2 = patch(vert_x, vert_y, cat(3,[1 0 1 0], [1 0 1 0],[1 0 1 0]),'LineWidth',3, 'Parent', ax);
 
 
     COMH = struct('B_COMOuter',b1,'B_COMInner',b2);
@@ -250,7 +249,7 @@ function COMH = DrawCOM(BodyJPos,radius)
 end
 
 % Create patches of Ground in the Constructor. Save handles for update function.
-function GroundH = DrawGround
+function GroundH = DrawGround(ax)
 
         % Draw the ground. It reaches from -2.5 to +6.5.
         h   = 0.01; % Height of the bar at the top
@@ -272,99 +271,23 @@ function GroundH = DrawGround
          
         vert_x_out = [-15 100 100 -15];
         vert_y_out = [0 0 -20 -20];
-        ground = patch(vert_x_out, vert_y_out,'white');   
-        lines  = patch('faces', f, 'vertices', v);
+        ground = patch(vert_x_out, vert_y_out,'white', 'Parent', ax);   
+        lines  = patch('faces', f, 'vertices', v, 'Parent', ax);
         
         GroundH = struct('ground',ground,'lines',lines);
 end
 
-% Create patches of Phase Diagram in the Constructor. Save handles for update function.
-function PhaseDiagram = DrawPhaseDiagram(x,P)
-    %Compute the position of vertices
-    [vertices_box,pos_text,pos_PhaseBars] = ComputePhaseDiagram(x,P);
-
-    % A box will be drawn to include the phase bars and discriptions
-    % Define vertices of box 
-    box_x = vertices_box(1,:);
-    box_y = vertices_box(2,:);
-    phase_box = patch(box_x, box_y,'white','LineWidth',1.5);
-
-
-    % Show the descriptions for the phase bars
-    t_bl = text(pos_text(1,1),pos_text(1,2),'LH','FontSize',10);
-    t_fl = text(pos_text(2,1),pos_text(2,2),'LF','FontSize',10);
-    t_fr = text(pos_text(3,1),pos_text(3,2),'RF','FontSize',10);
-    t_br = text(pos_text(4,1),pos_text(4,2),'RH','FontSize',10);
-
-    % Drawing the phase bars: draw two layers, one for stance face and one for flight phase.
-    % If tTD<tLO, draw flight phase(white) and then cover it with stance phase(black);
-    % If tTD>tLO, draw stance phase(white) and then cover it with flight phase(black).
-
-    % Define the color of phase bar, currently black
-    cp = [0 0 0];
-
-    % Event timings that determine the sequence and the length of phase bars
-    pos_BL = pos_PhaseBars(1:4,:);
-    pos_BR = pos_PhaseBars(5:8,:);
-    pos_FL = pos_PhaseBars(9:12,:);
-    pos_FR = pos_PhaseBars(13:16,:);
-    tEvents = P(1:9);
-    % Back left phase bar
-    if tEvents(1)<tEvents(2)
-        phasebl_ = patch(pos_BL(1,:), pos_BL(2,:), 'white','EdgeColor','none');
-        phasebl  = patch(pos_BL(3,:), pos_BL(4,:), cp,'EdgeColor','none');
-    elseif tEvents(1)>tEvents(2)
-        phasebl_ = patch(pos_BL(1,:), pos_BL(2,:), cp,'EdgeColor','none');
-        phasebl  = patch(pos_BL(3,:), pos_BL(4,:), 'white','EdgeColor','none');
-    end
-
-    % Back right phase bar
-    if tEvents(5)<tEvents(6)
-        phasebr_ = patch(pos_BR(1,:), pos_BR(2,:),'white','EdgeColor','none');
-        phasebr  = patch(pos_BR(3,:), pos_BR(4,:), cp,'EdgeColor','none');
-    elseif tEvents(5)>tEvents(6)
-        phasebr_ = patch(pos_BR(1,:), pos_BR(2,:), cp,'EdgeColor','none');
-        phasebr  = patch(pos_BR(3,:), pos_BR(4,:), 'white','EdgeColor','none');
-    end
-
-    % Front left phase bar
-    if tEvents(3)<tEvents(4)
-        phasefl_ = patch(pos_FL(1,:), pos_FL(2,:),'white','EdgeColor','none');
-        phasefl  = patch(pos_FL(3,:), pos_FL(4,:), cp,'EdgeColor','none');
-    elseif tEvents(3)>tEvents(4)
-        phasefl_ = patch(pos_FL(1,:), pos_FL(2,:), cp,'EdgeColor','none');
-        phasefl  = patch(pos_FL(3,:), pos_FL(4,:), 'white','EdgeColor','none');
-    end
-
-
-    % Front right phase bar
-    if tEvents(7)<tEvents(8)
-        phasefr_ = patch(pos_FR(1,:), pos_FR(2,:),'white','EdgeColor','none');
-        phasefr  = patch(pos_FR(3,:), pos_FR(4,:), cp,'EdgeColor','none');
-    elseif tEvents(7)>tEvents(8)
-        phasefr_ = patch(pos_FR(1,:), pos_FR(2,:), cp,'EdgeColor','none');
-        phasefr  = patch(pos_FR(3,:), pos_FR(4,:), 'white','EdgeColor','none');
-    end
-
-
-    PhaseDiagram = struct('Phase_bl',phasebl,'Phase_br',phasebr,'Phase_fl',phasefl,'Phase_fr',phasefr,...
-                          'Phase_bl_',phasebl_,'Phase_br_',phasebr_,'Phase_fl_',phasefl_,'Phase_fr_',phasefr_,...
-                          'Phase_box',phase_box,'Text_bl',t_bl,'Text_fl',t_fl,'Text_fr',t_fr,'Text_br',t_br);
-
-end
-
-
-function RopeLoad = DrawRopeLoad(y,l_rope)
+function RopeLoad = DrawRopeLoad(y,l_rope,ax)
 
     [Load_x,Load_y] = ComputeLoadGraphics(y,l_rope);
 
     Load  = patch('XData',Load_x,'YData',Load_y,'FaceColor',[0 0 0],'FaceAlpha',0.3,...
-                  'EdgeColor',[0 0 0],'LineWidth',2);
+                  'EdgeColor',[0 0 0],'LineWidth',2, 'Parent', ax);
 
     xdata_Load   = [y(1);y(1);y(15);y(15)];
     ydata_Load   = [y(3);y(3);y(17);y(17)];
     Rope  = patch('XData',xdata_Load,'YData',ydata_Load,'FaceColor',[0 0 0],'FaceAlpha',0.3,...
-                  'EdgeColor',[0 0 0],'LineWidth',2);
+                  'EdgeColor',[0 0 0],'LineWidth',2, 'Parent', ax);
 
     % Load  = patch('XData',Load_x,'YData',Load_y,'LineStyle','none','FaceColor',[0 0 0]);
     
@@ -434,47 +357,7 @@ function SetCOM(BodyJPos,COM,radius)
 end
 
 
-% Set the patches of phase diagram when figure is updated.
-function SetPhaseDiagram(x,P,PhaseDiagram)
-    %Compute the position of vertices
-    [vertices_box,pos_text,pos_PhaseBars] = ComputePhaseDiagram(x,P);
 
-    % Define vertices of box 
-    box_x = vertices_box(1,:);
-    box_y = vertices_box(2,:);
-    set(PhaseDiagram.Phase_box,'xData',box_x,'yData', box_y)
-
-
-    % Define the position of text
-    set(PhaseDiagram.Text_bl,'Position',pos_text(1,:))
-    set(PhaseDiagram.Text_fl,'Position',pos_text(2,:))
-    set(PhaseDiagram.Text_fr,'Position',pos_text(3,:))
-    set(PhaseDiagram.Text_br,'Position',pos_text(4,:))
-
-    % Event timings that determine the sequence and the length of phase bars
-    pos_BL = pos_PhaseBars(1:4,:);
-    pos_BR = pos_PhaseBars(5:8,:);
-    pos_FL = pos_PhaseBars(9:12,:);
-    pos_FR = pos_PhaseBars(13:16,:);
-
-    % Back left phase bar
-    set(PhaseDiagram.Phase_bl_,'xData',pos_BL(1,:),'yData', pos_BL(2,:))
-    set(PhaseDiagram.Phase_bl,'xData', pos_BL(3,:),'yData', pos_BL(4,:))
-
-    % Back right phase bar
-    set(PhaseDiagram.Phase_br_,'xData',pos_BR(1,:),'yData', pos_BR(2,:))
-    set(PhaseDiagram.Phase_br,'xData', pos_BR(3,:),'yData', pos_BR(4,:))
-
-    % Front left phase bar
-    set(PhaseDiagram.Phase_fl_,'xData',pos_FL(1,:),'yData', pos_FL(2,:))
-    set(PhaseDiagram.Phase_fl,'xData', pos_FL(3,:),'yData', pos_FL(4,:))
-
-
-    % Front right phase bar
-    set(PhaseDiagram.Phase_fr_,'xData',pos_FR(1,:),'yData', pos_FR(2,:))
-    set(PhaseDiagram.Phase_fr,'xData', pos_FR(3,:),'yData', pos_FR(4,:))
-
-end
 
 function SetRopeLoad(y,l_rope,RopeLoad)
 

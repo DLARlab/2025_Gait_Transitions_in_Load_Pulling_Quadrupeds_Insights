@@ -6,7 +6,7 @@ classdef SLIP_FootfallSequence_Quad < OutputCLASS
     end
 
     methods
-        function obj = SLIP_FootfallSequence_Quad(FFSeq, PlotTarget)
+        function obj = SLIP_FootfallSequence_Quad(FFSeq, PlotPosition, PlotTarget)
             % FFSeq: N x 8 matrix [RH_start RH_end RF_start RF_end LF_start LF_end LH_start LH_end]
 
             % Initialize OutputCLASS properties
@@ -24,6 +24,8 @@ classdef SLIP_FootfallSequence_Quad < OutputCLASS
             else
                 error('PlotTarget must be an axis or figure handle.');
             end
+
+            set(obj.ax, 'Position', PlotPosition, 'Box', 'Off')
 
             obj = obj.InitializePlots(FFSeq);
         end

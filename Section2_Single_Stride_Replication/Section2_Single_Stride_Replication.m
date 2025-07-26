@@ -1,8 +1,11 @@
 function Section2_Single_Stride_Replication()
     clc;
-    global results selectedIndex T Y P GRF graphicsObjs currentfolder isSimulating;
-    results = [];
-    selectedIndex = 1;
+    global X_accum term_weights gait_data  T Y P F_Leash  R2  graphicsObjs currentfolder isSimulating;
+    X_accum = [];
+    term_weights = struct();
+    gait_data = struct();
+    T = []; Y = []; P = []; F_Leash = [];
+    R2 = struct();
     graphicsObjs = struct();
     currentfolder = pwd;
     isSimulating = false;
@@ -20,18 +23,18 @@ function Section2_Single_Stride_Replication()
 
     % Folder button
     folderButton = uibutton(fig, 'Text', 'Select Folder', ...
-        'Position', [0.03*screenSize(4), topY, buttonWidth, buttonHeight], ...
+        'Position', [0.10*screenSize(4), topY, buttonWidth, buttonHeight], ...
         'ButtonPushedFcn', @(src, event) SelectFolder());
 
     % Dropdown
     dropdownWidth = 0.12 * screenSize(4);
     matDropdown = uidropdown(fig, ...
-        'Position', [0.03*screenSize(4) + buttonWidth + 0.05*buttonWidth, topY, dropdownWidth, buttonHeight], ...
+        'Position', [0.10*screenSize(4) + buttonWidth + 0.05*buttonWidth, topY, dropdownWidth, buttonHeight], ...
         'Items', GetMatFiles(), ...
         'ValueChangedFcn', @(src, event) LoadSelectedFile());
 
     % Slider (no ticks or labels)
-    sliderX = 0.08*screenSize(4) + buttonWidth + dropdownWidth + 4.0*buttonWidth;
+    sliderX = 0.08*screenSize(4) + buttonWidth + dropdownWidth + 3.5*buttonWidth;
     slider = uislider(fig, ...
         'Position', [sliderX, topY + buttonHeight/2, 3 * buttonWidth, 3], ...
         'Limits', [0, 1], ...
@@ -71,15 +74,12 @@ function Section2_Single_Stride_Replication()
     figSize = fig.Position;
     PlotSize = [(3.5/10)*figSize(3),         (12/16)*(3.5/10)*figSize(3); ...
                 (3.5/2.5)*figSize(3)/5,        (12/16)*(3.5/2.5)*(figSize(3)/5)];
-    halfHeight = PlotSize(2,2)/2;
     PlotPositions = [
-        (1/2)*figSize(3)-(2/2 + 1/10)*PlotSize(1,1),            (0.5/10)*figSize(4)+PlotSize(2,2) + buttonHeight, PlotSize(1,1), PlotSize(1,2);
-        (1/2)*figSize(3)-(0/2 - 1/10)*PlotSize(1,1),            (0.5/10)*figSize(4)+PlotSize(2,2) + buttonHeight, PlotSize(1,1), PlotSize(1,2);
-        (1/2)*figSize(3)-(3/2)*PlotSize(2,1) - 0.5*buttonWidth, (0.5/10)*figSize(4), PlotSize(2,1),               PlotSize(2,2);
-        (1/2)*figSize(3)-(1/2)*PlotSize(2,1),                   (0.5/10)*figSize(4)+halfHeight,                   PlotSize(2,1), halfHeight;
-        (1/2)*figSize(3)-(1/2)*PlotSize(2,1),                   (0.5/10)*figSize(4),                              PlotSize(2,1), halfHeight;
-        (1/2)*figSize(3)+(1/2)*PlotSize(2,1) + 0.5*buttonWidth, (0.5/10)*figSize(4),                              PlotSize(2,1), PlotSize(2,2)];
-    for axidx = 1:6
+        (1/2)*figSize(3)-(2/2)*PlotSize(1,1)- 1.0*buttonWidth,            (0.5/10)*figSize(4)+PlotSize(2,2) + buttonHeight,       1.5*PlotSize(1,1),               PlotSize(1,2);
+        (1/2)*figSize(3)-(2/2)*PlotSize(2,1) - 2.1*buttonWidth,           (0.5/10)*figSize(4),                                    2*PlotSize(2,2),                 PlotSize(2,2);
+        (1/2)*figSize(3)+(1/2)*PlotSize(2,1) - 0.0*buttonWidth,           (0.5/10)*figSize(4),                                    PlotSize(2,1),                   PlotSize(2,2)];
+
+    for axidx = 1:size(PlotPositions,1)
         ax(axidx) = uiaxes(fig);
         ax(axidx).Position = PlotPositions(axidx, :);
     end
@@ -92,28 +92,12 @@ function Section2_Single_Stride_Replication()
         LoadSelectedFile();
     end
 
-    function HandleSliderChange(val)
-        val = min(max(val, 0), 1);
-        val = round(val, 2);
-        normTimeInput.Value = val;
-        UpdateFrame(val * T(end));
-    end
-
-    function HandleNormTimeInput()
-        val = normTimeInput.Value;
-        val = min(max(val, 0), 1);
-        val = round(val, 2);
-        normTimeInput.Value = val;
-        slider.Value = val;
-        UpdateFrame(val * T(end));
-    end
-
     function files = GetMatFiles()
         matFiles = dir(fullfile(currentfolder, '*.mat'));
         validFiles = {};
         for i = 1:length(matFiles)
             s = load(fullfile(currentfolder, matFiles(i).name));
-            if isfield(s, 'results')
+            if isfield(s, 'X_accum')
                 validFiles{end+1} = matFiles(i).name;
             end
         end
@@ -133,9 +117,7 @@ function Section2_Single_Stride_Replication()
                 matDropdown.Value = matDropdown.Items{1};
                 LoadSelectedFile();
             else
-                results = [];
-                indexInput.Value = 1;
-                numSolutionsLabel.Text = ' / Nah';
+                X_accum = [];
             end
             figure(fig);
         end
@@ -145,51 +127,68 @@ function Section2_Single_Stride_Replication()
         file = matDropdown.Value;
         if strcmp(file, '<none>'), return; end
         data = load(fullfile(currentfolder, file));
-        if ~isfield(data, 'results')
-            uialert(fig, 'Selected file does not contain "results".', 'Error');
+        if ~isfield(data, 'X_accum')
+            uialert(fig, 'Selected file does not contain "X_accum".', 'Error');
             return;
         end
-        results = data.results;
-        indexInput.Value = 1;
-        numSolutionsLabel.Text = [' / ', num2str(size(results,2))];
+        X_accum = data.X_accum;
+        gait_data = data.gait_data;
+        term_weights = data.term_weights;
         InitializePlots();
     end
 
     function InitializePlots()
-        if isempty(results), return; end
-        val = indexInput.Value;
-        if isnan(val) || floor(val) ~= val
-            uialert(fig, 'Unable to select solution: Integer input requested.', 'Error');
+        % Load .mat file containing 'X_accum'
+        if ~exist('X_accum', 'var')
+            [file, path] = uigetfile('*.mat', 'Select a MAT-file containing X_accum');
+            if isequal(file, 0)
+                uialert(fig, 'File selection cancelled.', 'Warning');
+                return;
+            end
+            loadedData = load(fullfile(path, file));
+            if ~isfield(loadedData, 'X_accum')
+                uialert(fig, 'Selected file does not contain "X_accum".', 'Error');
+                return;
+            end
+            X_accum = loadedData.X_accum;
+            gait_data = loadedData.gait_data;
+            term_weights = loadedData.term_weights;
+        end
+    
+        % Ensure X_accum is valid
+        if isempty(X_accum) || ~isvector(X_accum)
+            uialert(fig, 'Invalid solution format in X_accum.', 'Error');
             return;
         end
-        if val < 1 || val > size(results,2)
-            uialert(fig, 'Unable to select solution: Index number out of range.', 'Error');
-            return;
-        end
-        selectedIndex = val;
+    
+        clc;
+    
+        % Run simulation
+        [~, T, Y, P, ~, F_Leash, ~] = Quad_Load_ZeroFun_Transition_v2(X_accum);
+        
 
-        clc
+        t_exp             = gait_data.t_exp;
+        loading_force_exp = gait_data.loading_force_exp; 
+        ft_exp            = gait_data.ft_exp; 
 
-        if isempty(results), return; end
-        X = results(1:22, selectedIndex);
-        Para = results(23:end, selectedIndex);
+        [~, ~, R2] = fms_NStridesOptimization_Quad_Load_v2(X_accum, t_exp, ft_exp, loading_force_exp, term_weights);
+        
 
-        [~, T, Y, P, GRF, ~] = Quadrupedal_ZeroFun_v2(X, Para);
+        % Reset GUI inputs
         slider.Value = 0;
         normTimeInput.Value = 0;
-
-        [gait, abbr, color_plot, linetype] = Gait_Identification(results(:, selectedIndex));
-
-        am = 'Detailed';
-        options = struct('AnimationMode', am);
+    
+    
+        % Animation options
+        options = struct('AnimationMode', 'Detailed');
         options = DefaultOptions(options);
-
-        graphicsObjs.Animation = SLIP_Animation_Quad(P, ax(1).Position, ax(1), options);
-        graphicsObjs.Orbit = SLIP_PeriodicOrbit_Quad(Y, ax(2).Position, ax(2), color_plot);
-        graphicsObjs.Trajectories = SLIP_Trajectories_Quad(T, Y, [ax(3); ax(4); ax(5)]);
-        graphicsObjs.GRF = SLIP_GRF_Quad(T, GRF, ax(6));
+    
+        % Create graphics objects
+        graphicsObjs.Animation = SLIP_Animation_Quad_Load(Y, P, ax(1).Position, ax(1), options);
+        graphicsObjs.Orbit = SLIP_FootfallSequence_Quad( ax(2).Position, ax(2));
+        graphicsObjs.Trajectories = SLIP_Trajectories_Quad(T, Y, ax(3));
     end
-
+    
     function RunSimulation()
         if isempty(T) || isempty(Y), return; end
         isSimulating = true;
@@ -223,20 +222,27 @@ function Section2_Single_Stride_Replication()
 
         T_ = T(T <= t);
         Y_ = Y(T <= t,:);
-        GRF_ = GRF(T <= t, :);
 
         if ~isempty(graphicsObjs.Animation)
             graphicsObjs.Animation.update(t, y, P); 
         end
-        % if ~isempty(graphicsObjs.Orbit)
-        %     graphicsObjs.Orbit.update(y); 
-        % end
-        % if ~isempty(graphicsObjs.Trajectories)
-        %     graphicsObjs.Trajectories.update(T_, Y_); 
-        % end
-        % if ~isempty(graphicsObjs.GRF)
-        %     graphicsObjs.GRF.update(T_, GRF_); 
-        % end
+
+    end
+
+    function HandleSliderChange(val)
+        val = min(max(val, 0), 1);
+        val = round(val, 2);
+        normTimeInput.Value = val;
+        UpdateFrame(val * T(end));
+    end
+
+    function HandleNormTimeInput()
+        val = normTimeInput.Value;
+        val = min(max(val, 0), 1);
+        val = round(val, 2);
+        normTimeInput.Value = val;
+        slider.Value = val;
+        UpdateFrame(val * T(end));
     end
 
     function options = DefaultOptions(options)

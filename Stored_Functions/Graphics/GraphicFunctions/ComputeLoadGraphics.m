@@ -1,4 +1,4 @@
-function [load_x,load_y] = ComputeLoadGraphics(y,l_rope)
+function [load_x,load_y] = ComputeLoadGraphics(y, l_rope)
 
 x_com   = y(1);
 y_com   = y(3);
