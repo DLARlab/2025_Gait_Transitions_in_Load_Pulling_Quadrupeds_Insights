@@ -104,7 +104,7 @@ classdef SLIP_Animation_Quad_Load< OutputCLASS
             Y = obj.States;
             x = Y(1,1); y = Y(1,3); phi_body = Y(1,5);
 
-            lb = P(15); l_leg_rest = P(13); l_rope   = P(end);
+            lb = P(15); l_leg_rest = P(13);
 
             obj.Leg_BL = DrawLegs([x-lb;y], l_leg_rest, l_leg_rest, 0.3, obj.axes);
             obj.Leg_FL = DrawLegs([x+(1-lb);y], l_leg_rest, l_leg_rest, -0.1, obj.axes); 
@@ -119,7 +119,7 @@ classdef SLIP_Animation_Quad_Load< OutputCLASS
             obj.Leg_BR = DrawLegs([x-lb;y], l_leg_rest, l_leg_rest, 0.3, obj.axes);
             obj.Leg_FR = DrawLegs([x+(1-lb);y], l_leg_rest, l_leg_rest, -0.1, obj.axes);
 
-            obj.RopeLoad  = DrawRopeLoad( Y(1,:), l_rope, obj.axes);
+            obj.RopeLoad  = DrawRopeLoad( Y(1,:), obj.axes);
 
 
             axis(obj.axes, [-3 + x , 1.5+x, -0.1, 2]);
@@ -148,9 +148,9 @@ classdef SLIP_Animation_Quad_Load< OutputCLASS
             SetLegs(BackJPos,  LegLength.BR, P(13), LegAngle.BR,obj.Leg_BR);
             SetLegs(FrontJPos, LegLength.FR, P(13), LegAngle.FR,obj.Leg_FR);        
             
-            SetRopeLoad(y,P(end),obj.RopeLoad);
-
-            axis([-3 + BodyJPos(1),1.5 + BodyJPos(1),-0.1,2]);
+            SetRopeLoad(y, obj.RopeLoad);
+            
+            axis(obj.axes, [-3 + BodyJPos(1),1.5 + BodyJPos(1),-0.1,2]);
             drawnow();
         end
             
@@ -277,9 +277,9 @@ function GroundH = DrawGround(ax)
         GroundH = struct('ground',ground,'lines',lines);
 end
 
-function RopeLoad = DrawRopeLoad(y,l_rope,ax)
+function RopeLoad = DrawRopeLoad(y,ax)
 
-    [Load_x,Load_y] = ComputeLoadGraphics(y,l_rope);
+    [Load_x,Load_y] = ComputeLoadGraphics(y);
 
     Load  = patch('XData',Load_x,'YData',Load_y,'FaceColor',[0 0 0],'FaceAlpha',0.3,...
                   'EdgeColor',[0 0 0],'LineWidth',2, 'Parent', ax);
@@ -308,9 +308,9 @@ function SetBody(BodyJPos, Body,lb)
 end
 
 % Set the patches of legs when figure is updated.
-function  SetLegs(vecS,l_leg, gamma_leg,Leghandle)
+function  SetLegs( vecS, l_leg, l_leg_rest, gamma_leg, Leghandle)
 
-    [LegVertices, LegFaces] = ComputeLegGraphics(vecS,l_leg,gamma_leg);
+    [LegVertices, LegFaces] = ComputeLegGraphics( vecS, l_leg, l_leg_rest, gamma_leg);
     % Spring Part 1 (Zigzag line)**********************************************
     set(Leghandle.L_Sp1,'faces', LegFaces.L_Sp1,  'vertices', LegVertices.L_Sp1);
     % Upper Leg****************************************************************
@@ -359,9 +359,9 @@ end
 
 
 
-function SetRopeLoad(y,l_rope,RopeLoad)
+function SetRopeLoad(y,RopeLoad)
 
-    [load_x,load_y] = ComputeLoadGraphics(y,l_rope);
+    [load_x,load_y] = ComputeLoadGraphics(y);
     set(RopeLoad.Load, 'xData', load_x,'yData', load_y)
 
 

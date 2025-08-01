@@ -1,10 +1,10 @@
 function Section2_Single_Stride_Replication()
     clc;
-    global X_accum term_weights gait_data  T Y P F_Leash  R2  graphicsObjs currentfolder isSimulating;
+    global X_accum term_weights gait_data  T Y P TF_Sim  R2  graphicsObjs currentfolder isSimulating;
     X_accum = [];
     term_weights = struct();
     gait_data = struct();
-    T = []; Y = []; P = []; F_Leash = [];
+    T = []; Y = []; P = []; TF_Sim = [];
     R2 = struct();
     graphicsObjs = struct();
     currentfolder = pwd;
@@ -75,14 +75,30 @@ function Section2_Single_Stride_Replication()
     PlotSize = [(3.5/10)*figSize(3),         (12/16)*(3.5/10)*figSize(3); ...
                 (3.5/2.5)*figSize(3)/5,        (12/16)*(3.5/2.5)*(figSize(3)/5)];
     PlotPositions = [
-        (1/2)*figSize(3)-(2/2)*PlotSize(1,1)- 1.0*buttonWidth,            (0.5/10)*figSize(4)+PlotSize(2,2) + buttonHeight,       1.5*PlotSize(1,1),               PlotSize(1,2);
-        (1/2)*figSize(3)-(2/2)*PlotSize(2,1) - 2.1*buttonWidth,           (0.5/10)*figSize(4),                                    2*PlotSize(2,2),                 PlotSize(2,2);
+        (1/2)*figSize(3)-(2/2)*PlotSize(1,1) - 1.0*buttonWidth,           (0.5/10)*figSize(4)+PlotSize(2,2) + buttonHeight,       1.5*PlotSize(1,1),               PlotSize(1,2);
+        (1/2)*figSize(3)-(3/2)*PlotSize(2,1) - 1.5*buttonWidth,           (0.5/10)*figSize(4),                                    2.1*PlotSize(2,1),                 PlotSize(2,2);
         (1/2)*figSize(3)+(1/2)*PlotSize(2,1) - 0.0*buttonWidth,           (0.5/10)*figSize(4),                                    PlotSize(2,1),                   PlotSize(2,2)];
 
     for axidx = 1:size(PlotPositions,1)
         ax(axidx) = uiaxes(fig);
         ax(axidx).Position = PlotPositions(axidx, :);
     end
+
+    % Readout boxes for R2 values
+    baseX = ax(1).Position(1) + ax(1).Position(3) + 2*buttonWidth;
+    boxWidth = 2*buttonWidth;
+    boxHeight = buttonHeight;
+    spacingY = 1.2*buttonHeight;
+    baseY = ax(1).Position(2) + 0.5*ax(1).Position(4) - 0.5*boxHeight ;
+
+    uilabel(fig, 'Text', '$R^2$. Footfall Timing', 'Interpreter', 'latex', 'Position', [baseX, baseY + 3*spacingY, boxWidth, boxHeight]);
+    footfallTimingField = uieditfield(fig, 'numeric', 'Editable', 'off', 'Position', [baseX, baseY + 2*spacingY, boxWidth, boxHeight]);
+
+    uilabel(fig, 'Text', '$R^2$. Loading Force', 'Interpreter', 'latex', 'Position', [baseX, baseY + 1*spacingY, boxWidth, boxHeight]);
+    loadingForceField = uieditfield(fig, 'numeric', 'Editable', 'off', 'Position', [baseX, baseY + 0*spacingY, boxWidth, boxHeight]);
+
+    uilabel(fig, 'Text', '$R^2$. Stride Duration', 'Interpreter', 'latex', 'Position', [baseX, baseY - spacingY, boxWidth, boxHeight]);
+    strideDurationField = uieditfield(fig, 'numeric', 'Editable', 'off', 'Position', [baseX, baseY - 2*spacingY, boxWidth, boxHeight]);
 
     %% File dropdown
     initialFiles = GetMatFiles();
@@ -164,15 +180,47 @@ function Section2_Single_Stride_Replication()
         clc;
     
         % Run simulation
-        [~, T, Y, P, ~, F_Leash, ~] = Quad_Load_ZeroFun_Transition_v2(X_accum);
+        [~, T, Y, P, ~, TF_Sim, ~] = Quad_Load_ZeroFun_Transition_v2(X_accum);        
+        ft_sim = P([1 2 3 4 7 8 5 6])./P(9);
         
+        Number_of_Strides = size(TF_Sim,2);
 
         t_exp             = gait_data.t_exp;
-        loading_force_exp = gait_data.loading_force_exp; 
-        ft_exp            = gait_data.ft_exp; 
 
-        [~, ~, R2] = fms_NStridesOptimization_Quad_Load_v2(X_accum, t_exp, ft_exp, loading_force_exp, term_weights);
+        % Extract all fields from gait_data that contain 'loading_force'
+        lf_fields = fieldnames(gait_data);
+        lf_fields = lf_fields(contains(lf_fields, 'loading_force'));
+        if numel(lf_fields) >1
+            tf_exp = struct();
+            for j = 1:numel(lf_fields)
+                tf_exp.(lf_fields{j}) = gait_data.(lf_fields{j});
+            end
+        else
+            tf_exp = gait_data.loading_force_exp;
+        end
         
+        % Extract all fields from gait_data that contain 'ft'
+        ft_fields = fieldnames(gait_data);
+        ft_fields = ft_fields(contains(ft_fields, 'ft'));
+        if numel(ft_fields)>1
+            ft_exp = struct();
+            for k = 1:numel(ft_fields)
+                ft_exp.(ft_fields{k}) = gait_data.(ft_fields{k});
+            end
+        else
+            ft_exp = gait_data.ft_exp;
+        end
+        
+        if isstruct(ft_exp)
+            [~, ~, R2] = fms_NStridesObjectiveFcn_Quad_Load_v2(X_accum, t_exp, ft_exp.ft_exp, tf_exp.loading_force_mean, term_weights);
+        else
+            [~, ~, R2] = fms_NStridesObjectiveFcn_Quad_Load_v2(X_accum, t_exp, ft_exp, tf_exp, term_weights);
+        end
+
+        % Update readout boxes
+        footfallTimingField.Value = R2.footfalltiming;
+        loadingForceField.Value = R2.loadingforce;
+        strideDurationField.Value = R2.strideduration;
 
         % Reset GUI inputs
         slider.Value = 0;
@@ -185,8 +233,10 @@ function Section2_Single_Stride_Replication()
     
         % Create graphics objects
         graphicsObjs.Animation = SLIP_Animation_Quad_Load(Y, P, ax(1).Position, ax(1), options);
-        graphicsObjs.Orbit = SLIP_FootfallSequence_Quad( ax(2).Position, ax(2));
-        graphicsObjs.Trajectories = SLIP_Trajectories_Quad(T, Y, ax(3));
+        graphicsObjs.Footfall = SLIP_FootfallSequence_Quad( ft_sim, ft_exp, ax(2).Position, ax(2));
+        graphicsObjs.TuglineForce = SLIP_TuglineForce( TF_Sim, tf_exp, Number_of_Strides, ax(3).Position, ax(3));
+
+        % graphicsObjs.Trajectories = SLIP_Trajectories_Quad(T, Y, ax(3));
     end
     
     function RunSimulation()

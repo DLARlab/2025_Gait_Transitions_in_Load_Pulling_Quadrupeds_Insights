@@ -1,4 +1,4 @@
-function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_accum, t_exp, ft_exp, loading_force_exp, term_weights)
+function [total_cost, cost_terms, R2] = fms_NStridesObjectiveFcn_Quad_Load_v2(X_accum, t_exp, ft_exp, loading_force_exp, term_weights)
 
   num_strides = size(t_exp,1);
   fixed_length   = 44;    % still 44 per stride, since you're still carrying E(9) in X_multi
@@ -31,12 +31,12 @@ function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_
    
     % stride‐duration
     if iscell(t_exp)
-        T_curr_dsample = DataLengthResampler(T_curr, t_exp{stride_idx,:});
+        T_curr_dsample = linspace(0,P_curr(9),length(t_exp{stride_idx,:}));
         sd_diff_sum = sd_diff_sum + norm(t_exp{stride_idx,:} - T_curr_dsample);
         SD_exp = [SD_exp t_exp{stride_idx,:}];
         SD_sim = [SD_sim T_curr_dsample];
     else
-        T_curr_dsample = DataLengthResampler(T_curr, t_exp(stride_idx,:));
+        T_curr_dsample = linspace(0,P_curr(9),length(t_exp(stride_idx,:)));
         sd_diff_sum = sd_diff_sum + norm(t_exp(stride_idx,:) - T_curr_dsample);
         SD_exp = [SD_exp t_exp(stride_idx,:)];
         SD_sim = [SD_sim T_curr_dsample];
@@ -102,11 +102,11 @@ function [total_cost, cost_terms, R2] = fms_NStridesOptimization_Quad_Load_v2(X_
     TSS_lf = sum((LF_exp - mean(LF_exp)).^2);
     
     R2.strideduration = 1 - (RSS_sd / TSS_sd);
-    R2.ft = 1 - (RSS_ft / TSS_ft);
+    R2.footfalltiming = 1 - (RSS_ft / TSS_ft);
     R2.loadingforce = 1 - (RSS_lf / TSS_lf);
 
     R2.weighted = (term_weights.strideduration * R2.strideduration + ...
-                   term_weights.ft * R2.ft + ...
+                   term_weights.ft * R2.footfalltiming + ...
                    term_weights.loadingforce * R2.loadingforce)/(term_weights.strideduration + term_weights.ft + term_weights.loadingforce);
 end
 
