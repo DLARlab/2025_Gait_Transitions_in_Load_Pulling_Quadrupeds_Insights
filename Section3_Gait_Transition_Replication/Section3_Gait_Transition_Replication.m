@@ -1,9 +1,10 @@
-function Section2_Single_Stride_Replication()
+function Section3_Gait_Transition_Replication()
     clc;
-    global X_accum term_weights gait_data  T Y P TF_Sim  R2  graphicsObjs currentfolder isSimulating;
+    global X_accum term_weights gait_data sensitivity_data  T Y P TF_Sim  R2  graphicsObjs currentfolder isSimulating;
     X_accum = [];
     term_weights = struct();
     gait_data = struct();
+    sensitivity_data = struct();
     T = []; Y = []; P = []; TF_Sim = [];
     R2 = struct();
     graphicsObjs = struct();
@@ -13,14 +14,14 @@ function Section2_Single_Stride_Replication()
     %% GUI Setup
     screenSize = get(groot, 'ScreenSize');
     fig = uifigure('Name','SLIP Quadruped Viewer', ...
-                   'Position', [screenSize(3)*0.5-screenSize(4)*0.6,  screenSize(4)*0.5 - screenSize(4)*0.4, ...
-                                screenSize(4)*1.2, screenSize(4)*0.80]);
+                   'Position', [screenSize(3)*0.5-screenSize(4)*0.6,  screenSize(4)*0.5 - screenSize(4)*0.45, ...
+                                screenSize(4)*1.0, screenSize(4)*0.60]);
 
     % Define proportions
-    figSize = fig.Position;
-    buttonWidth = 0.08 * screenSize(4);
-    buttonHeight = 0.04 * screenSize(4);
-    topY = figSize(4) - 1.5*buttonHeight;
+    figPos = fig.Position;
+    buttonWidth = 0.06 * screenSize(4);
+    buttonHeight = 0.03 * screenSize(4);
+    topY = figPos(4) - 1.5*buttonHeight;
 
     % Folder button
     folderButton = uibutton(fig, 'Text', 'Select Folder', ...
@@ -45,8 +46,8 @@ function Section2_Single_Stride_Replication()
     % Tick labels manually
     tickLabels = {'0', '0.5', '1'};
     tickPositions = linspace(sliderX, sliderX + 3 * buttonWidth, 3);
-    for i = 1:length(tickLabels)
-        uilabel(fig, 'Text', tickLabels{i}, 'Position', [tickPositions(i) - 10, topY + buttonHeight/2 - 20, 30, 20]);
+    for t = 1:length(tickLabels)
+        uilabel(fig, 'Text', tickLabels{t}, 'Position', [tickPositions(t) - 10, topY + buttonHeight/2 - 20, 30, 20]);
     end
 
     % Normalized time input
@@ -69,37 +70,51 @@ function Section2_Single_Stride_Replication()
         'Position', [runButton.Position(1) + runButton.Position(3) + 0.05*buttonWidth, topY, 1.1*buttonWidth, buttonHeight], ...
         'ButtonPushedFcn', @(src, event) StopSimulation());
 
-
     %% Axes
     ax = gobjects(1,6);
-    figSize = fig.Position;
-    PlotSize = [(3.5/10)*figSize(3),         (12/16)*(3.5/10)*figSize(3); ...
-                (3.5/2.5)*figSize(3)/5,        (12/16)*(3.5/2.5)*(figSize(3)/5)];
-    PlotPositions = [
-        (1/2)*figSize(3)-(2/2)*PlotSize(1,1) - 1.0*buttonWidth,           (0.5/10)*figSize(4)+PlotSize(2,2) + buttonHeight,       1.5*PlotSize(1,1),               PlotSize(1,2);
-        (1/2)*figSize(3)-(3/2)*PlotSize(2,1) - 1.5*buttonWidth,           (0.5/10)*figSize(4),                                    2.1*PlotSize(2,1),                 PlotSize(2,2);
-        (1/2)*figSize(3)+(1/2)*PlotSize(2,1) - 0.0*buttonWidth,           (0.5/10)*figSize(4),                                    PlotSize(2,1),                   PlotSize(2,2)];
+    figW = figPos(3); figH = figPos(4);
+    mX = 0.06*figW; mY = 0.06*figH; gX = 0.02*figW; gY = 0.02*figH; gX12 = gX;
+    usableH = max(0, (topY - gY) - mY);
+    leftW  = (figW - 2*mX - gX)/2; rightW = leftW;
+    leftX  = mX; rightX = leftX + leftW + gX;
 
-    for axidx = 1:size(PlotPositions,1)
-        ax(axidx) = uiaxes(fig);
-        ax(axidx).Position = PlotPositions(axidx, :);
+    % Keep left column width, update height for 3:1 ratio
+    wL = leftW;
+    hL = wL / 3;
+    totalLeftHeight = 3*hL + 2*gY;
+    yTop = mY + totalLeftHeight;
+
+    y1 = mY; y2 = y1 + hL + gY; y3 = y2 + hL + gY;
+    posL = [leftX, y3, 1.1*wL, hL; leftX, y2, wL, hL; leftX, y1, wL, hL];
+
+    % Right column as before
+    coef = (1 + 1/1.2);
+    rhs_v = usableH - gY + (gX12/2)/1.2; bound_v = rhs_v / coef;
+    rhs_l = (3/4)*leftW + gY + (gX12/2)/1.2; bound_l = rhs_l / coef;
+    rowH4 = min([rightW/2, bound_v, bound_l]); rowH4 = max(rowH4, gX12/2 + eps);
+    w4  = 2*rowH4; w56 = (w4 - gX12)/2; h56 = w56 / 1.2;
+    x4 = rightX + (rightW - w4)/2; pos4 = [x4, yTop - rowH4, w4, rowH4];
+    x5 = x4; x6 = x5 + w56 + gX12; pos5 = [x5, mY, w56, h56]; pos6 = [x6, mY, w56, h56];
+
+    PlotPositions = [posL; pos4; pos5; pos6];
+    for ax_id = 1:6
+        ax(ax_id) = uiaxes(fig);
+        ax(ax_id).Position = PlotPositions(ax_id,:);
     end
 
+
+
     % Readout boxes for R2 values
-    baseX = ax(1).Position(1) + ax(1).Position(3) + 2*buttonWidth;
+    baseX = x5;
+    baseY = mY + h56;
     boxWidth = 2*buttonWidth;
     boxHeight = buttonHeight;
-    spacingY = 1.2*buttonHeight;
-    baseY = ax(1).Position(2) + 0.5*ax(1).Position(4) - 0.5*boxHeight ;
 
-    uilabel(fig, 'Text', '$R^2$. Footfall Timing', 'Interpreter', 'latex', 'Position', [baseX, baseY + 3*spacingY, boxWidth, boxHeight]);
-    footfallTimingField = uieditfield(fig, 'numeric', 'Editable', 'off', 'Position', [baseX, baseY + 2*spacingY, boxWidth, boxHeight]);
 
-    uilabel(fig, 'Text', '$R^2$. Loading Force', 'Interpreter', 'latex', 'Position', [baseX, baseY + 1*spacingY, boxWidth, boxHeight]);
-    loadingForceField = uieditfield(fig, 'numeric', 'Editable', 'off', 'Position', [baseX, baseY + 0*spacingY, boxWidth, boxHeight]);
 
-    uilabel(fig, 'Text', '$R^2$. Stride Duration', 'Interpreter', 'latex', 'Position', [baseX, baseY - spacingY, boxWidth, boxHeight]);
-    strideDurationField = uieditfield(fig, 'numeric', 'Editable', 'off', 'Position', [baseX, baseY - 2*spacingY, boxWidth, boxHeight]);
+    uilabel(fig, 'Text', '$R^2$. Weighted', 'Interpreter', 'latex', 'Position', [baseX + 0.5*boxWidth, baseY + boxHeight, boxWidth, boxHeight]);
+    R2WeightedField = uieditfield(fig, 'numeric', 'Editable', 'off', 'Position', [baseX + 1.5*boxWidth, baseY +  boxHeight, boxWidth, boxHeight]);
+
 
     %% File dropdown
     initialFiles = GetMatFiles();
@@ -112,10 +127,10 @@ function Section2_Single_Stride_Replication()
     function files = GetMatFiles()
         matFiles = dir(fullfile(currentfolder, '*.mat'));
         validFiles = {};
-        for i = 1:length(matFiles)
-            s = load(fullfile(currentfolder, matFiles(i).name));
+        for m = 1:length(matFiles)
+            s = load(fullfile(currentfolder, matFiles(m).name));
             if isfield(s, 'X_accum')
-                validFiles{end+1} = matFiles(i).name;
+                validFiles{end+1} = matFiles(m).name;
             end
         end
         if isempty(validFiles)
@@ -149,8 +164,9 @@ function Section2_Single_Stride_Replication()
             return;
         end
         X_accum = data.X_accum;
-        gait_data = data.gait_data;
+        gait_data = data.TransitionTemplate_Normalized;
         term_weights = data.term_weights;
+        sensitivity_data = data.SensitivityStudyData;
         InitializePlots();
     end
 
@@ -168,8 +184,9 @@ function Section2_Single_Stride_Replication()
                 return;
             end
             X_accum = loadedData.X_accum;
-            gait_data = loadedData.gait_data;
+            gait_data = loadedData.TransitionTemplate_Normalized;
             term_weights = loadedData.term_weights;
+            sensitivity_data = data.SensitivityStudyData;
         end
     
         % Ensure X_accum is valid
@@ -181,9 +198,12 @@ function Section2_Single_Stride_Replication()
         clc;
     
         % Run simulation
+%         [~, T, Y, P, ~, TF_Sim, ~] = Quad_Load_ZeroFun_Transition_v2(X_accum); 
         [~, ~, T, Y, ~, TF_Sim, P, ~, Number_of_Strides] = SimulateQuadLoadStrides(X_accum);
+       
+        ft_sim = P(:,[1 2 3 4 7 8 5 6])./P(:,9) + ([1:Number_of_Strides]'-1);
 
-        ft_sim = P(:,[1 2 3 4 7 8 5 6])./P(:,9);
+
         
         t_exp             = gait_data.t_exp;
 
@@ -191,12 +211,12 @@ function Section2_Single_Stride_Replication()
         lf_fields = fieldnames(gait_data);
         lf_fields = lf_fields(contains(lf_fields, 'loading_force'));
         if numel(lf_fields) >1
-            tf_exp = struct();
+            lf_exp = struct();
             for j = 1:numel(lf_fields)
-                tf_exp.(lf_fields{j}) = gait_data.(lf_fields{j});
+                lf_exp.(lf_fields{j}) = gait_data.(lf_fields{j});
             end
         else
-            tf_exp = gait_data.loading_force_exp;
+            lf_exp = gait_data.loading_force_exp;
         end
         
         % Extract all fields from gait_data that contain 'ft'
@@ -212,17 +232,17 @@ function Section2_Single_Stride_Replication()
         end
         
         if isstruct(ft_exp)
-            [~, ~, R2] = fms_NStridesObjectiveFcn_Quad_Load_v2(X_accum, t_exp, ft_exp.ft_exp, tf_exp.loading_force_mean, term_weights);
+            [~, ~, R2] = fms_NStridesObjectiveFcn_Quad_Load_v2(X_accum, t_exp, ft_exp.ft_exp, lf_exp.loading_force_mean, term_weights);
         else
-            [~, ~, R2] = fms_NStridesObjectiveFcn_Quad_Load_v2(X_accum, t_exp, ft_exp, tf_exp, term_weights);
+            [~, ~, R2] = fms_NStridesObjectiveFcn_Quad_Load_v2(X_accum, t_exp, ft_exp, lf_exp, term_weights);
         end
 
         % Update readout boxes
-        footfallTimingField.Value = R2.footfalltiming;
-        loadingForceField.Value = R2.loadingforce;
-        strideDurationField.Value = R2.strideduration;
+        R2WeightedField.Value = R2.weighted;
+
 
         % Reset GUI inputs
+        slider.Limits = [0 Number_of_Strides];
         slider.Value = 0;
         normTimeInput.Value = 0;
     
@@ -232,11 +252,14 @@ function Section2_Single_Stride_Replication()
         options = DefaultOptions(options);
     
         % Create graphics objects
-        graphicsObjs.Animation = SLIP_Animation_Quad_Load(Y, P, ax(1).Position, ax(1), options);
-        graphicsObjs.Footfall = SLIP_FootfallSequence_Quad( ft_sim, ft_exp, ax(2).Position, ax(2));
-        graphicsObjs.TuglineForce = SLIP_TuglineForce( TF_Sim, tf_exp, Number_of_Strides, ax(3).Position, ax(3));
+        graphicsObjs.Footfall = SLIP_FootfallSequence_Quad( ft_sim, ft_exp, ax(1).Position, ax(1));
+        graphicsObjs.LegTrajectories = SLIP_LegTrajectories_Quad(T, Y, Number_of_Strides, ax(2).Position, ax(2));
+        graphicsObjs.TuglineForce = SLIP_TuglineForce( TF_Sim, lf_exp, Number_of_Strides, ax(3).Position, ax(3));
+        pbaspect(graphicsObjs.TuglineForce.ax, [2*Number_of_Strides 1 1]);
+        
+        graphicsObjs.Animation = SLIP_Animation_Quad_Load(Y, P(1,:), ax(4).Position, ax(4), options);
 
-        % graphicsObjs.Trajectories = SLIP_Trajectories_Quad(T, Y, ax(3));
+        graphicsObjs.Sensitivity = SLIP_Sensitivity_Quad(sensitivity_data, [ax(5); ax(6)]);
     end
     
     function RunSimulation()
@@ -250,7 +273,7 @@ function Section2_Single_Stride_Replication()
                 break;
             end
             t = frameNorms(k) * T(end);
-
+            
             slider.Value = frameNorms(k);
             normTimeInput.Value = round(frameNorms(k), 2);
 
@@ -273,8 +296,16 @@ function Section2_Single_Stride_Replication()
         T_ = T(T <= t);
         Y_ = Y(T <= t,:);
 
+        if t < P(1,9)
+            P_curr = P(1,:);
+        else
+            P_curr = P(2,:);
+            P_curr(1:9) = P_curr(1:9) + P(1,9);
+        end
+
         if ~isempty(graphicsObjs.Animation)
-            graphicsObjs.Animation.update(t, y, P); 
+            graphicsObjs.Animation.Para = P_curr;
+            graphicsObjs.Animation.update(t, y, P_curr); 
         end
 
     end
@@ -302,9 +333,9 @@ function Section2_Single_Stride_Replication()
             'SaveTrajectories', 'Off', 'SavePeriodicOrbit', 'Off', 'SaveGRF', 'Off', ...
             'AnimationRepeatTime', '1');
         fields = fieldnames(defaults);
-        for i = 1:length(fields)
-            if ~isfield(options, fields{i}) || isempty(options.(fields{i}))
-                options.(fields{i}) = defaults.(fields{i});
+        for f = 1:length(fields)
+            if ~isfield(options, fields{f}) || isempty(options.(fields{f}))
+                options.(fields{f}) = defaults.(fields{f});
             end
         end
     end

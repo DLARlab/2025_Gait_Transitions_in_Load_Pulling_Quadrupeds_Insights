@@ -37,6 +37,7 @@ classdef SLIP_Animation_Quad_Load< OutputCLASS
     % Private attributes:
     properties
         States;
+        Para;
         fig;
         axes;
         Body;  
@@ -59,6 +60,7 @@ classdef SLIP_Animation_Quad_Load< OutputCLASS
             obj.options  = options;
             
             obj.States = Y;
+            obj.Para   = P;
 
             if isa(FigOrAx, 'matlab.ui.Figure')
 
@@ -123,6 +125,8 @@ classdef SLIP_Animation_Quad_Load< OutputCLASS
 
 
             axis(obj.axes, [-3 + x , 1.5+x, -0.1, 2]);
+            title(obj.axes, 'SLIP Quad-Load Animation');
+            pbaspect(obj.axes, [2 1 1]);
         end
 
         % Updated function. Is called by the integrator:

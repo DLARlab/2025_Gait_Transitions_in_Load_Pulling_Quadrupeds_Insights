@@ -152,7 +152,7 @@ classdef SLIP_FootfallSequence_Quad < OutputCLASS
             yticklabels(obj.ax, {'RH','RF','LF','LH'});  % bottom-to-top order
 
 
-            xlabel(obj.ax, 'Stride Cycle [%]');
+            xlabel(obj.ax, 'Stride Time  [%]');
             title(obj.ax, 'Footfall Sequence');
             pbaspect(obj.ax, [2*N 1 1]);
 
@@ -189,7 +189,10 @@ classdef SLIP_FootfallSequence_Quad < OutputCLASS
             end
 
             % Display legend
-            legend(obj.ax, legendHandles, legendLabels, 'Location', 'best');
+            if N > 1
+            else
+                legend(obj.ax, legendHandles, legendLabels, 'Location', 'best');
+            end
     
         end
 

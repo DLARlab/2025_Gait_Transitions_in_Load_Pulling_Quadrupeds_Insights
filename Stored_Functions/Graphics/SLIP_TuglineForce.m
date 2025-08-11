@@ -47,6 +47,7 @@ classdef SLIP_TuglineForce < OutputCLASS
             end
 
             set(obj.ax, 'Position', PlotPosition, 'Box', 'on');
+%             pbaspect(obj.ax, [2*obj.Number_of_Strides 1 1]);
 
             obj = obj.InitializePlots();
         end
@@ -69,6 +70,7 @@ classdef SLIP_TuglineForce < OutputCLASS
             % Plot simulation tugline force
             obj.LineSim = plot(obj.ax, T, F_sim_val, '-', 'LineWidth', 2, 'Color', [0 0.4470 0.7410], 'DisplayName', 'Sim');
             xlim(obj.ax, [0 T(end)]);
+            ylim(obj.ax, [0 1.2*max(F_sim_val)])
         
             % Plot experimental force if provided
             if ~isempty(obj.F_exp)
@@ -99,20 +101,27 @@ classdef SLIP_TuglineForce < OutputCLASS
                         LF_mean = LF_mean(:);
                         LF_std = LF_std(:);
                         obj.RangeExp = fill(obj.ax, [T; flipud(T)], [LF_mean+LF_std; flipud(LF_mean-LF_std)], [0.6350 0.0780 0.1840], 'FaceAlpha',0.3, 'EdgeColor','none', 'DisplayName','Exp \pm1\sigma');
+                        ylim(obj.ax, [0 1.2*max([max(LF_mean+LF_std) max(F_sim_val)] )])
                     end
 
                     legend(obj.ax, 'Sim','Exp Mean', 'Exp Range', 'Location', 'best');
 
                 else
-                    F_exp_val = DataLengthResampler(obj.F_exp, T);
+                    if iscell(obj.F_exp)
+                        F_exp_val = cat(1, obj.F_exp{:});
+                        F_exp_val = DataLengthResampler(F_exp_val, T);
+                    else
+                        F_exp_val = DataLengthResampler(obj.F_exp, T);
+                    end
                     obj.LineExp = plot(obj.ax, T, F_exp_val, ':','LineWidth',2.5, 'DisplayName','Exp');
                     legend(obj.ax, 'Sim','Exp','Location', 'best');
+                    ylim(obj.ax, [0 1.2*max([max(F_exp_val) max(F_sim_val)] )])
                 end
             end
         
-            xlabel(obj.ax, 'Stride Time  $[\sqrt{l_0/g}]$', 'Interpreter', 'LaTeX');
+            xlabel(obj.ax, 'Stride Time  [%]');
             ylabel(obj.ax, 'Leash Force  $[mg]$', 'Interpreter', 'LaTeX');
-            title(obj.ax, 'Loading Force Along the Rope');
+            title(obj.ax, 'Loading Force Along the Tugline');
         
             strideTicks = 0:0.25:N;
             xticks(obj.ax, strideTicks);
