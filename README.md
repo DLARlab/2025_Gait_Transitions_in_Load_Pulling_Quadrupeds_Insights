@@ -27,7 +27,7 @@ The source code is released under a [BSD 3-Clause license](LICENSE).
 - Department of Animal Science, Cornell University, USA
 - School of Chemical and Biomolecular Engineering, Georgia Institute of Technology, USA
 
-<img src="/Model.png" alt="Model" width="50%" height="50%">
+<img src="/Model.png" alt="Model" width="75%" height="75%">
 
 ## Publications
 
