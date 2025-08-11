@@ -4,6 +4,10 @@
 
 This repository contains MATLAB code to simulate and analyze galloping gait transitions in sled dogs pulling loads, based on a minimal Spring-Loaded Inverted Pendulum (SLIP) model with hybrid dynamics. The code reproduces experimentally observed gait sequences, tugline forces, and stride-to-stride transitions by optimizing model parameters. It supports both single-gait replication and multi-stride transition analysis, enabling exploration of the biomechanical mechanisms behind locomotor multistability under load.
 
+
+<img src="/Fig1_Overview.png" alt="Model" width="75%" height="75%">
+
+
 Contents:
 * **Section 1 — Gait Statics:** GUI to visualize gait timing statistics (footfall diagrams, duty factors, phase lags) from **animal experiments** and **SLIP simulations**.
 * **Section 2 — Single-Stride Replication:** GUI to reproduce a **single periodic stride** with the hybrid SLIP–load model and compare to experimental averages.
@@ -27,7 +31,7 @@ The source code is released under a [BSD 3-Clause license](LICENSE).
 - Department of Animal Science, Cornell University, USA
 - School of Chemical and Biomolecular Engineering, Georgia Institute of Technology, USA
 
-<img src="/Model.png" alt="Model" width="75%" height="75%">
+<img src="/Fig2_Model.png" alt="Model" width="75%" height="75%">
 
 ## Publications
 
