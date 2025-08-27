@@ -62,6 +62,9 @@ If you use this work in an academic context, please cite the following publicati
 The source code and datasets for the simulations and figures are available at:  
 [https://github.com/DLARlab/2025_Gait_Transitions_in_Load_Pulling_Quadrupeds_Insights](https://github.com/DLARlab/2025_Gait_Transitions_in_Load_Pulling_Quadrupeds_Insights)
 
+Details on the biologging devices used in the study, their design files, and supporting analysis scripts are available at:  
+[https://github.com/bhamla-lab/DoggyLogger](https://github.com/bhamla-lab/DoggyLogger)
+
 ## Requirements
 
 This code requires MATLAB R2019b or later.
