@@ -74,7 +74,7 @@ This code requires MATLAB R2019b or later.
 ### Quick start (GUI-based)
 All sections ship with a MATLAB GUI and include datasets from **animal experiments** and **model simulations**.
 
-1. **Add repo to MATLAB path** (or `cd` into the repo root).
+1. **Add repo to MATLAB path** (or `cd` into the repo root). You can do that by simply run **P0_Add_Path.m** under the root path.
 2. **Launch a section by function name** from the Command Window:
    - `Section1_Gait_Statics`
    - `Section2_Single_Stride_Replication`
