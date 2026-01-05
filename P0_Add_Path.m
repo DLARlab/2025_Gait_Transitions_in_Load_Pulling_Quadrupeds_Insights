@@ -8,3 +8,6 @@ end
 thisDir = fileparts(thisFile);
 addpath(genpath(thisDir));
 
+clear
+clc
+
