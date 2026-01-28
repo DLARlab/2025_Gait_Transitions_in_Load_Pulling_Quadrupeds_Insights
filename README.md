@@ -88,3 +88,7 @@ All sections ship with a MATLAB GUI and include datasets from **animal experimen
 - Core utilities live in `Stored_Functions/` and are loaded automatically by the section GUIs.
 - MATLAB R2019b+ is required.
 
+### Video
+<p align="center">
+  <a href="/video.mp4">▶ Watch demo video (MP4)</a>
+</p>
